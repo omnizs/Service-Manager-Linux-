@@ -1,0 +1,21 @@
+{
+  "name": "service-manager",
+  "version": "1.0.0",
+  "description": "Cross-platform graphical utility for managing system services.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "services",
+    "electron",
+    "systemctl",
+    "launchctl"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^39.0.0"
+  }
+}

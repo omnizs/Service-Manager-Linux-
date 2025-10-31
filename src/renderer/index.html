@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Service Manager</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="left">
+        <h1>Service Manager</h1>
+        <p class="subtitle">Cross-platform control for system services</p>
+      </div>
+      <div class="right">
+        <div class="indicator">
+          <span class="dot" id="indicatorDot"></span>
+          <span id="statusText">Idle</span>
+        </div>
+        <button class="refresh" id="refreshButton" aria-label="Refresh services list">
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel-primary">
+        <div class="toolbar">
+          <div class="search">
+            <input type="text" id="searchInput" placeholder="Search services by name or description" autocomplete="off" />
+          </div>
+          <div class="filters">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="failed">Failed</option>
+              <option value="activating">Activating</option>
+              <option value="deactivating">Deactivating</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="services" role="grid" aria-label="System services">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Status</th>
+                <th scope="col">Startup</th>
+                <th scope="col">Executable</th>
+                <th scope="col">Description</th>
+                <th scope="col" class="actions-header">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="servicesTableBody">
+              <tr class="empty">
+                <td colspan="6">Loading services...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel panel-secondary" aria-live="polite">
+        <h2>Details</h2>
+        <div id="detailsPane" class="details">
+          <p class="empty">Select a service to view details</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span id="lastUpdated">Last updated: —</span>
+      <span id="serviceCount">0 services</span>
+    </footer>
+
+    <div id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
+
+    <script src="renderer.js" defer></script>
+  </body>
+</html>
+
