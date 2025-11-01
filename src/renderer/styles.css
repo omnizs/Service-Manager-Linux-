@@ -34,6 +34,29 @@ body {
   padding: 24px 28px 12px;
 }
 
+.app-header .left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 2px 8px rgba(79, 124, 255, 0.4));
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.app-icon:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 12px rgba(79, 124, 255, 0.6));
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+}
+
 .app-header h1 {
   margin: 0;
   font-size: 1.75rem;
