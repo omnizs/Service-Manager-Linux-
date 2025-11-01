@@ -33,6 +33,7 @@ function createMainWindow(): void {
     show: false,
     backgroundColor: '#1b1d23',
     icon: iconPath,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
