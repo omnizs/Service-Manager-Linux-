@@ -1,6 +1,6 @@
 {
   "name": "@omnizs/service-manager",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS.",
   "main": "dist/main/main.js",
   "bin": {
@@ -44,6 +44,9 @@
   "files": [
     "dist/",
     "bin/",
+    "assets/",
+    "icon.ico",
+    "icon.png",
     "LICENSE",
     "README.md"
   ],

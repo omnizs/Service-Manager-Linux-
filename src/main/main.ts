@@ -19,6 +19,12 @@ interface ServicesControlPayload {
 let mainWindow: BrowserWindow | null = null;
 
 function createMainWindow(): void {
+  const iconPath = process.platform === 'win32'
+    ? path.join(__dirname, '..', '..', 'assets', 'icons', 'icon.ico')
+    : process.platform === 'darwin'
+    ? path.join(__dirname, '..', '..', 'assets', 'icons', 'icon.icns')
+    : path.join(__dirname, '..', '..', 'assets', 'icons', 'icon-512.png');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 780,
@@ -26,6 +32,7 @@ function createMainWindow(): void {
     minHeight: 600,
     show: false,
     backgroundColor: '#1b1d23',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
