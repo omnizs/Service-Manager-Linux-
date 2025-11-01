@@ -1,9 +1,4 @@
 # Service Manager
-
-<p align="center">
-  <img src="assets/icons/icon-256.png" alt="Service Manager Icon" width="128" height="128">
-</p>
-
 Service Manager is a cross-platform Electron application that offers a single, secure interface for discovering and managing system services on Linux (systemd), Windows (Service Control Manager), and macOS (launchd).
 
 ## Features
