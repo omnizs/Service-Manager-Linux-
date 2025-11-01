@@ -340,8 +340,9 @@ function normalizeStatus(status: string | undefined): string {
   const lower = status.toLowerCase();
   
   // Map various status strings to normalized values
-  if (lower.includes('active') || lower.includes('running')) return 'active';
+  // Check inactive BEFORE active (since "inactive" contains "active")
   if (lower.includes('inactive') || lower.includes('dead') || lower.includes('stopped')) return 'inactive';
+  if (lower.includes('active') || lower.includes('running')) return 'active';
   if (lower.includes('failed')) return 'failed';
   if (lower.includes('activating')) return 'activating';
   if (lower.includes('deactivating')) return 'deactivating';
