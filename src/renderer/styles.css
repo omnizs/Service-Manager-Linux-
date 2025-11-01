@@ -457,13 +457,13 @@ dd.monospace {
 }
 
 .status-inactive {
-  background: var(--color-error-bg);
-  color: var(--color-error);
+  background: rgba(255, 83, 112, 0.2);
+  color: #ff5370;
 }
 
 .status-failed {
-  background: rgba(255, 83, 112, 0.18);
-  color: #ff8599;
+  background: rgba(255, 83, 112, 0.25);
+  color: #ff6b7d;
 }
 
 .status-activating,
