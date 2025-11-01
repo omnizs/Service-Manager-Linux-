@@ -10,6 +10,8 @@ interface AppState {
   pollInterval: number;
   pollTimer: ReturnType<typeof setInterval> | null;
   lastUpdated: Date | null;
+  currentPage: number;
+  itemsPerPage: number;
 }
 
 interface DetailAction {
@@ -46,6 +48,8 @@ const state: AppState = {
   pollInterval: 5000,
   pollTimer: null,
   lastUpdated: null,
+  currentPage: 1,
+  itemsPerPage: 100,
 };
 
 const dom = {} as DomRefs;
@@ -53,6 +57,7 @@ const dom = {} as DomRefs;
 document.addEventListener('DOMContentLoaded', () => {
   cacheDom();
   bindEvents();
+  bindKeyboardShortcuts();
   void refreshServices({ showLoader: true });
   startPolling();
   window.addEventListener('beforeunload', stopPolling);
@@ -84,6 +89,31 @@ function bindEvents(): void {
   dom.searchInput.addEventListener('input', debouncedFilter);
   dom.statusFilter.addEventListener('change', applyFilters);
   dom.refreshButton.addEventListener('click', () => void refreshServices({ showLoader: true }));
+}
+
+function bindKeyboardShortcuts(): void {
+  document.addEventListener('keydown', (event) => {
+    // Ctrl+R or Cmd+R to refresh
+    if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+      event.preventDefault();
+      void refreshServices({ showLoader: true });
+    }
+    
+    // Escape to clear selection
+    if (event.key === 'Escape' && state.selectedId) {
+      event.preventDefault();
+      state.selectedId = null;
+      renderTable();
+      renderDetails(null);
+    }
+    
+    // Ctrl+F or Cmd+F to focus search
+    if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+      event.preventDefault();
+      dom.searchInput.focus();
+      dom.searchInput.select();
+    }
+  });
 }
 
 function startPolling(): void {
@@ -147,6 +177,7 @@ function applyFilters(): void {
   }
 
   state.filtered = filtered;
+  state.currentPage = 1; // Reset to first page when filters change
   renderTable();
   updateFooter();
 
@@ -175,7 +206,14 @@ function renderTable(): void {
     return;
   }
 
-  state.filtered.forEach((service) => {
+  // Calculate pagination
+  const totalPages = Math.ceil(state.filtered.length / state.itemsPerPage);
+  const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+  const endIndex = Math.min(startIndex + state.itemsPerPage, state.filtered.length);
+  const pageItems = state.filtered.slice(startIndex, endIndex);
+
+  // Render only the current page of services
+  pageItems.forEach((service) => {
     const row = document.createElement('tr');
     row.dataset.serviceId = service.id;
     if (state.selectedId === service.id) {
@@ -184,20 +222,79 @@ function renderTable(): void {
 
     row.addEventListener('click', () => void selectService(service));
 
-    row.appendChild(createCell(service.name, 'cell-name'));
+    row.appendChild(createCell(service.name, 'cell-name', false, service.name));
     row.appendChild(createStatusCell(service));
-    row.appendChild(createCell(formatStartupType(service.startupType), 'cell-startup'));
-    row.appendChild(createCell(service.executable || '—', 'cell-executable', true));
-    row.appendChild(createCell(service.description || '—', 'cell-description'));
+    row.appendChild(createCell(formatStartupType(service.startupType), 'cell-startup', false, formatStartupType(service.startupType)));
+    row.appendChild(createCell(service.executable || '—', 'cell-executable', true, service.executable || ''));
+    row.appendChild(createCell(service.description || '—', 'cell-description', false, service.description || ''));
     row.appendChild(createActionsCell(service));
 
     dom.tableBody.appendChild(row);
   });
+
+  // Show pagination info if there are multiple pages
+  if (totalPages > 1) {
+    const paginationRow = document.createElement('tr');
+    paginationRow.className = 'pagination-row';
+    const paginationCell = document.createElement('td');
+    paginationCell.colSpan = 6;
+    paginationCell.className = 'pagination-cell';
+    
+    const paginationInfo = document.createElement('div');
+    paginationInfo.className = 'pagination-info';
+    paginationInfo.textContent = `Showing ${startIndex + 1}-${endIndex} of ${state.filtered.length}`;
+    
+    const paginationControls = document.createElement('div');
+    paginationControls.className = 'pagination-controls';
+    
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '← Previous';
+    prevBtn.className = 'pagination-button';
+    prevBtn.disabled = state.currentPage === 1;
+    prevBtn.addEventListener('click', () => {
+      if (state.currentPage > 1) {
+        state.currentPage--;
+        renderTable();
+        updateFooter();
+      }
+    });
+    
+    const pageInfo = document.createElement('span');
+    pageInfo.className = 'page-info';
+    pageInfo.textContent = `Page ${state.currentPage} of ${totalPages}`;
+    
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next →';
+    nextBtn.className = 'pagination-button';
+    nextBtn.disabled = state.currentPage === totalPages;
+    nextBtn.addEventListener('click', () => {
+      if (state.currentPage < totalPages) {
+        state.currentPage++;
+        renderTable();
+        updateFooter();
+      }
+    });
+    
+    paginationControls.appendChild(prevBtn);
+    paginationControls.appendChild(pageInfo);
+    paginationControls.appendChild(nextBtn);
+    
+    paginationCell.appendChild(paginationInfo);
+    paginationCell.appendChild(paginationControls);
+    paginationRow.appendChild(paginationCell);
+    dom.tableBody.appendChild(paginationRow);
+  }
 }
 
-function createCell(content: string, className = '', monospace = false): HTMLTableCellElement {
+function createCell(content: string, className = '', monospace = false, tooltip = ''): HTMLTableCellElement {
   const cell = document.createElement('td');
   if (className) cell.className = className;
+  
+  // Add tooltip if content is provided and not just a dash
+  if (tooltip && tooltip !== '—') {
+    cell.title = tooltip;
+  }
+  
   if (monospace) {
     const span = document.createElement('span');
     span.className = 'monospace';

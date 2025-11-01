@@ -4,16 +4,30 @@ Service Manager is a cross-platform Electron application that offers a single, s
 
 ## Features
 
-- Real-time service overview with name, status, startup type, executable, and description.
-- Search by name or description and filter by common status values.
-- Start, stop, and restart services with automatic privilege elevation via `pkexec` on Linux when required.
-- Enable and disable services (control startup behavior on boot).
-- Responsive interface with live polling and detail panel for per-service metadata.
-- Native file browser integration for opening the corresponding unit/service definitions.
+- 🔍 **Real-time service overview** with name, status, startup type, executable, and description
+- 🔎 **Search and filter** by name, description, or status
+- ⚡ **Service control** - start, stop, restart services with automatic privilege elevation
+- 🔧 **Startup management** - enable/disable services to control boot behavior
+- 📊 **Pagination support** - efficiently handle systems with hundreds of services
+- 🎨 **Responsive UI** - adaptive layout with text truncation and tooltips for long paths
+- 🔄 **Live polling** - automatic updates every 5 seconds
+- 📁 **File browser integration** - open service/unit definition files directly
+- ⌨️ **Keyboard shortcuts** - Ctrl+R to refresh, Ctrl+F to search, Escape to clear selection
 
-## Getting Started
+## Installation
+
+### From npm
 
 ```bash
+npm install -g @omnizs/service-manager
+service-manager
+```
+
+### From Source
+
+```bash
+git clone https://github.com/omnizs/Service-Manager.git
+cd Service-Manager
 npm install
 npm run build
 npm start
@@ -35,13 +49,24 @@ npm start
 
 ## Development
 
-- `npm start` – Build the project (if needed) and launch Electron in development mode.
-- `npm run build` – Compile TypeScript sources and copy static assets to `dist/`.
-- Renderer auto-refreshes service data every 5 seconds. Use the `Refresh` button for manual updates.
+- `npm start` – Build the project (if needed) and launch Electron in development mode
+- `npm run build` – Compile TypeScript sources and copy static assets to `dist/`
+- `npm run clean` – Remove build artifacts
+- Renderer auto-refreshes service data every 5 seconds. Use the `Refresh` button or `Ctrl+R` for manual updates
+
+## Keyboard Shortcuts
+
+- `Ctrl+R` / `Cmd+R` - Refresh service list
+- `Ctrl+F` / `Cmd+F` - Focus search input
+- `Escape` - Clear service selection
 
 ## Security
 
 The renderer operates with context isolation enabled; all privileged calls flow through controlled IPC handlers in the main process. Elevated operations invoke the native tooling (`systemctl`, `powershell`, `launchctl`) directly without storing credentials.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
