@@ -326,12 +326,37 @@ function createStatusCell(service: ServiceInfo): HTMLTableCellElement {
   const cell = document.createElement('td');
   cell.className = 'cell-status';
 
+  const normalizedStatus = normalizeStatus(service.status);
   const badge = document.createElement('span');
-  badge.className = `status-badge status-${service.status || 'unknown'}`;
-  badge.textContent = service.statusLabel || service.status || 'unknown';
+  badge.className = `status-badge status-${normalizedStatus}`;
+  badge.textContent = formatStatusLabel(service.statusLabel || service.status || 'unknown');
   cell.appendChild(badge);
 
   return cell;
+}
+
+function normalizeStatus(status: string | undefined): string {
+  if (!status) return 'unknown';
+  const lower = status.toLowerCase();
+  
+  // Map various status strings to normalized values
+  if (lower.includes('active') || lower.includes('running')) return 'active';
+  if (lower.includes('inactive') || lower.includes('dead') || lower.includes('stopped')) return 'inactive';
+  if (lower.includes('failed')) return 'failed';
+  if (lower.includes('activating')) return 'activating';
+  if (lower.includes('deactivating')) return 'deactivating';
+  
+  return lower;
+}
+
+function formatStatusLabel(label: string): string {
+  if (!label) return 'Unknown';
+  
+  // Remove parenthetical descriptions like (dead), (running), etc.
+  const cleaned = label.replace(/\s*\([^)]*\)/g, '').trim();
+  
+  // Capitalize first letter
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
 }
 
 function createActionsCell(service: ServiceInfo): HTMLTableCellElement {
@@ -410,10 +435,15 @@ function renderDetails(service: ServiceInfo | null): void {
   dom.detailsPane.innerHTML = '';
 
   if (!service) {
-    const empty = document.createElement('p');
-    empty.className = 'empty';
-    empty.textContent = 'Select a service to view details';
-    dom.detailsPane.appendChild(empty);
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+    emptyState.innerHTML = `
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 4C12.96 4 4 12.96 4 24C4 35.04 12.96 44 24 44C35.04 44 44 35.04 44 24C44 12.96 35.04 4 24 4ZM24 40C15.18 40 8 32.82 8 24C8 15.18 15.18 8 24 8C32.82 8 40 15.18 40 24C40 32.82 32.82 40 24 40ZM22 22V14H26V22H22ZM22 34V26H26V34H22Z" fill="currentColor" opacity="0.3"/>
+      </svg>
+      <p>Select a service to view details</p>
+    `;
+    dom.detailsPane.appendChild(emptyState);
     return;
   }
 
@@ -421,7 +451,7 @@ function renderDetails(service: ServiceInfo | null): void {
 
   appendDetail(list, 'Name', service.name || service.id);
   appendDetail(list, 'Identifier', service.id);
-  appendDetail(list, 'Status', service.statusLabel || service.status || 'unknown');
+  appendDetail(list, 'Status', formatStatusLabel(service.statusLabel || service.status || 'unknown'));
   appendDetail(list, 'Startup Type', formatStartupType(service.startupType));
   appendDetail(list, 'Executable', service.executable || '—', service.executable ? 'monospace' : '');
   appendDetail(list, 'PID', service.pid ? String(service.pid) : '—');
