@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "lib": ["ES2021", "DOM"],
+    "outDir": "dist/renderer",
+    "rootDir": "src/renderer",
+    "types": [],
+    "declaration": false,
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "src/renderer/**/*.ts",
+    "src/types/**/*.d.ts"
+  ]
+}
+
+

@@ -1,0 +1,17 @@
+# Source files (compiled versions are in dist/)
+src/
+tsconfig*.json
+
+# Development files
+.git/
+.gitignore
+node_modules/
+*.log
+npm-debug.log*
+.DS_Store
+/tmp/
+out/
+
+# Keep only what's needed for the published package
+# The "files" field in package.json controls what's included
+

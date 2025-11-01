@@ -283,6 +283,14 @@ dd.monospace {
   border-color: rgba(79, 124, 255, 0.4);
 }
 
+.action-enable {
+  border-color: rgba(74, 211, 149, 0.4);
+}
+
+.action-disable {
+  border-color: rgba(240, 180, 41, 0.4);
+}
+
 .panel-secondary {
   padding: 22px 24px 18px;
 }

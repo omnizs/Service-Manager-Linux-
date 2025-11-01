@@ -1,21 +1,60 @@
 {
-  "name": "service-manager",
+  "name": "@omnizs/service-manager",
   "version": "1.0.0",
-  "description": "Cross-platform graphical utility for managing system services.",
-  "main": "src/main/main.js",
+  "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS.",
+  "main": "dist/main/main.js",
+  "bin": {
+    "service-manager": "./bin/service-manager.js"
+  },
   "scripts": {
-    "start": "electron ."
+    "clean": "rimraf dist",
+    "build": "npm run clean && npm run build:main && npm run build:renderer && npm run copy:assets",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json",
+    "copy:assets": "copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" dist",
+    "start": "npm run build && electron .",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "services",
-    "electron",
+    "service-manager",
+    "systemd",
     "systemctl",
-    "launchctl"
+    "launchctl",
+    "windows-services",
+    "electron",
+    "services",
+    "daemon",
+    "system-administration",
+    "cross-platform"
   ],
-  "author": "",
+  "author": "omnizs",
   "license": "MIT",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omnizs/Service-Manager-Linux-.git"
+  },
+  "bugs": {
+    "url": "https://github.com/omnizs/Service-Manager-Linux-/issues"
+  },
+  "homepage": "https://github.com/omnizs/Service-Manager-Linux-#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "LICENSE",
+    "README.md"
+  ],
   "devDependencies": {
+    "@types/node": "^22.10.1",
+    "copyfiles": "^2.4.1",
+    "electron": "^39.0.0",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
     "electron": "^39.0.0"
   }
 }

@@ -1,10 +1,33 @@
-const { execFile } = require('child_process');
-const { promisify } = require('util');
+import { execFile, type ExecFileOptions } from 'node:child_process';
+import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import type {
+  ServiceAction,
+  ServiceControlResult,
+  ServiceInfo,
+  ServiceListFilters,
+} from '../../types/service';
+
+type ExecError = NodeJS.ErrnoException & {
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+};
+
+interface ParseOptions {
+  single?: boolean;
+}
+
+type ExecFileAsync = (
+  file: string,
+  args: ReadonlyArray<string>,
+  options?: ExecFileOptions & { encoding?: BufferEncoding }
+) => Promise<{ stdout: string; stderr: string }>;
+
+const execFileAsync = promisify(execFile) as ExecFileAsync;
 
 const EXEC_OPTIONS = {
   maxBuffer: 1024 * 1024 * 24,
+  encoding: 'utf8' as const,
   env: {
     ...process.env,
     LANG: 'C',
@@ -12,9 +35,9 @@ const EXEC_OPTIONS = {
   },
 };
 
-const SUPPORTED_ACTIONS = new Set(['start', 'stop', 'restart']);
+const SUPPORTED_ACTIONS: ReadonlySet<ServiceAction> = new Set(['start', 'stop', 'restart', 'enable', 'disable']);
 
-async function listServices({ search, status } = {}) {
+export async function listServices({ search, status }: ServiceListFilters = {}): Promise<ServiceInfo[]> {
   const showArgs = [
     'show',
     '--type=service',
@@ -23,7 +46,7 @@ async function listServices({ search, status } = {}) {
     '--property=Id,Description,ExecStart,UnitFileState,ActiveState,SubState,FragmentPath,MainPID',
   ];
 
-  let stdout;
+  let stdout: string;
   try {
     ({ stdout } = await execFileAsync('systemctl', showArgs, EXEC_OPTIONS));
   } catch (error) {
@@ -51,7 +74,7 @@ async function listServices({ search, status } = {}) {
   return filtered.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function controlService(serviceId, action) {
+export async function controlService(serviceId: string, action: ServiceAction): Promise<ServiceControlResult> {
   if (!SUPPORTED_ACTIONS.has(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
@@ -73,7 +96,7 @@ async function controlService(serviceId, action) {
   }
 }
 
-async function getServiceDetails(serviceId) {
+export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
   const unit = normalizeServiceId(serviceId);
   const args = [
     'show',
@@ -82,7 +105,7 @@ async function getServiceDetails(serviceId) {
     '--property=Id,Description,ExecStart,UnitFileState,ActiveState,SubState,FragmentPath,MainPID,LoadState',
   ];
 
-  let stdout;
+  let stdout: string;
   try {
     ({ stdout } = await execFileAsync('systemctl', args, EXEC_OPTIONS));
   } catch (error) {
@@ -93,11 +116,12 @@ async function getServiceDetails(serviceId) {
   return service || null;
 }
 
-function shouldRetryWithPkexec(error) {
-  if (!error) return false;
-  if (error.code === 'EACCES') return true;
-  if (!error.stderr) return false;
-  const message = error.stderr.toString();
+function shouldRetryWithPkexec(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as ExecError;
+  if (err.code === 'EACCES') return true;
+  if (!err.stderr) return false;
+  const message = err.stderr.toString();
   return (
     message.includes('Access denied') ||
     message.includes('access denied') ||
@@ -107,33 +131,35 @@ function shouldRetryWithPkexec(error) {
   );
 }
 
-function handleSystemctlError(error) {
-  if (!error || !error.stderr) return;
-  const text = error.stderr.toString();
+function handleSystemctlError(error: unknown): void {
+  if (!error || typeof error !== 'object') return;
+  const err = error as ExecError;
+  if (!err.stderr) return;
+  const text = err.stderr.toString();
   if (text.includes('System has not been booted with systemd')) {
     const friendly = new Error('Systemd is not available on this system.');
-    friendly.code = 'NO_SYSTEMD';
+    (friendly as NodeJS.ErrnoException).code = 'NO_SYSTEMD';
     throw friendly;
   }
 }
 
-function normalizeServiceId(value) {
+function normalizeServiceId(value: string): string {
   if (!value.endsWith('.service')) {
     return `${value}.service`;
   }
   return value;
 }
 
-function parseSystemctlShow(output, { single = false } = {}) {
+function parseSystemctlShow(output: string, { single = false }: ParseOptions = {}): ServiceInfo[] {
   const chunks = output
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean);
 
-  const results = [];
+  const results: ServiceInfo[] = [];
 
   for (const block of chunks) {
-    const parsed = {};
+    const parsed: Record<string, string> = {};
     for (const line of block.split('\n')) {
       const separatorIndex = line.indexOf('=');
       if (separatorIndex === -1) continue;
@@ -149,13 +175,17 @@ function parseSystemctlShow(output, { single = false } = {}) {
     const status = normaliseStatus(parsed.ActiveState, parsed.SubState);
     const execPath = extractExecutable(parsed.ExecStart);
 
+    const unitFileState = parsed.UnitFileState || 'disabled';
+    const isEnabled = unitFileState === 'enabled' || unitFileState === 'static';
+    const canBeDisabled = unitFileState !== 'static' && unitFileState !== 'masked';
+
     results.push({
       id: parsed.Id,
       name: parsed.Id.replace(/\.service$/, ''),
       description: parsed.Description || '',
       status,
       statusLabel: buildStatusLabel(parsed.ActiveState, parsed.SubState),
-      startupType: parsed.UnitFileState || 'disabled',
+      startupType: unitFileState,
       executable: execPath,
       unitFile: parsed.FragmentPath || null,
       pid: parsed.MainPID ? Number.parseInt(parsed.MainPID, 10) || null : null,
@@ -165,6 +195,8 @@ function parseSystemctlShow(output, { single = false } = {}) {
       canStart: status !== 'active',
       canStop: status === 'active',
       canRestart: true,
+      canEnable: !isEnabled && canBeDisabled,
+      canDisable: isEnabled && canBeDisabled,
     });
   }
 
@@ -175,7 +207,7 @@ function parseSystemctlShow(output, { single = false } = {}) {
   return results;
 }
 
-function normaliseStatus(activeState, subState) {
+function normaliseStatus(activeState?: string, subState?: string): ServiceInfo['status'] {
   const normalised = (activeState || '').toLowerCase();
   if (!normalised) return 'unknown';
   if (normalised === 'active') {
@@ -189,10 +221,10 @@ function normaliseStatus(activeState, subState) {
   if (normalised === 'failed') return 'failed';
   if (normalised === 'activating') return 'activating';
   if (normalised === 'deactivating') return 'deactivating';
-  return normalised;
+  return normalised as ServiceInfo['status'];
 }
 
-function buildStatusLabel(activeState, subState) {
+function buildStatusLabel(activeState?: string, subState?: string): string {
   const primary = activeState ? activeState.toLowerCase() : 'unknown';
   const secondary = subState ? subState.toLowerCase() : '';
   if (secondary && secondary !== primary) {
@@ -201,7 +233,7 @@ function buildStatusLabel(activeState, subState) {
   return primary;
 }
 
-function extractExecutable(execStartValue) {
+function extractExecutable(execStartValue?: string): string | null {
   if (!execStartValue) return null;
 
   if (execStartValue.startsWith('{')) {
@@ -223,10 +255,4 @@ function extractExecutable(execStartValue) {
   const match = cleaned.match(/([^\s"']+)/);
   return match ? match[1] : cleaned;
 }
-
-module.exports = {
-  listServices,
-  controlService,
-  getServiceDetails,
-};
 

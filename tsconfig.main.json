@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "Node16",
+    "lib": ["ES2021"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "declaration": false
+  },
+  "include": [
+    "src/main/**/*.ts",
+    "src/preload.ts",
+    "src/types/**/*.d.ts"
+  ]
+}
+
+

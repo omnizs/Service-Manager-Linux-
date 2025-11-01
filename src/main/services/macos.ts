@@ -1,28 +1,64 @@
-const { execFile } = require('child_process');
-const { promisify } = require('util');
+import { execFile, type ExecFileOptions } from 'node:child_process';
+import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import type {
+  ServiceAction,
+  ServiceControlResult,
+  ServiceInfo,
+  ServiceListFilters,
+} from '../../types/service';
 
-const SUPPORTED_ACTIONS = new Set(['start', 'stop', 'restart']);
+type LaunchdService = ServiceInfo & { domain: string | null };
 
-async function listServices({ search, status } = {}) {
+interface LaunchctlMetadata {
+  program: string;
+  disabled?: boolean;
+  comment?: string;
+  pid: number | null;
+  status?: string;
+  statusLabel?: string;
+  domain: string;
+  raw: string;
+}
+
+type ExecFileAsync = (
+  file: string,
+  args: ReadonlyArray<string>,
+  options?: ExecFileOptions & { encoding?: BufferEncoding }
+) => Promise<{ stdout: string; stderr: string }>;
+
+const execFileAsync = promisify(execFile) as ExecFileAsync;
+
+const SUPPORTED_ACTIONS: ReadonlySet<ServiceAction> = new Set(['start', 'stop', 'restart', 'enable', 'disable']);
+
+export async function listServices({ search, status }: ServiceListFilters = {}): Promise<ServiceInfo[]> {
   const { stdout } = await execFileAsync('launchctl', ['list'], {
     maxBuffer: 1024 * 1024 * 16,
     env: process.env,
+    encoding: 'utf8',
   });
 
   const baseServices = parseLaunchctlList(stdout);
 
   const servicesWithMetadata = await mapWithConcurrency(baseServices, 6, async (service) => {
     const meta = await readServiceMetadata(service.id);
+    if (!meta) return service;
+
+    const isDisabled = typeof meta.disabled === 'boolean' ? meta.disabled : false;
+    const isEnabled = typeof meta.disabled === 'boolean' ? !meta.disabled : false;
+
     return {
       ...service,
-      startupType: meta && typeof meta.disabled === 'boolean' ? (meta.disabled ? 'disabled' : 'enabled') : service.startupType,
-      executable: meta && meta.program ? meta.program : service.executable,
-      description: meta && meta.comment ? meta.comment : service.description,
-      domain: meta && meta.domain ? meta.domain : service.domain,
-      raw: meta ? meta.raw : service.raw,
-    };
+      startupType: typeof meta.disabled === 'boolean' ? (meta.disabled ? 'disabled' : 'enabled') : service.startupType,
+      executable: meta.program || service.executable,
+      description: meta.comment || service.description,
+      domain: meta.domain,
+      raw: meta.raw,
+      status: (meta.status || service.status) as ServiceInfo['status'],
+      statusLabel: meta.statusLabel || service.statusLabel,
+      canEnable: isDisabled,
+      canDisable: isEnabled,
+    } satisfies LaunchdService;
   });
 
   let filtered = servicesWithMetadata;
@@ -44,13 +80,16 @@ async function listServices({ search, status } = {}) {
   return filtered.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function controlService(serviceId, action) {
+export async function controlService(
+  serviceId: string,
+  action: ServiceAction
+): Promise<ServiceControlResult> {
   if (!SUPPORTED_ACTIONS.has(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
 
   const candidates = buildDomainCandidates(serviceId);
-  let lastError = null;
+  let lastError: unknown = null;
 
   for (const domain of candidates) {
     try {
@@ -68,33 +107,41 @@ async function controlService(serviceId, action) {
   throw new Error(`Unable to execute action '${action}' for ${serviceId}`);
 }
 
-async function getServiceDetails(serviceId) {
+export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
   const meta = await readServiceMetadata(serviceId);
   if (!meta) return null;
+
+  const isDisabled = typeof meta.disabled === 'boolean' ? meta.disabled : false;
+  const isEnabled = typeof meta.disabled === 'boolean' ? !meta.disabled : false;
 
   return {
     id: serviceId,
     name: serviceId,
     description: meta.comment || '',
-    status: meta.status || 'unknown',
+    status: (meta.status || 'unknown') as ServiceInfo['status'],
     statusLabel: meta.statusLabel || meta.status || 'unknown',
     startupType: typeof meta.disabled === 'boolean' ? (meta.disabled ? 'disabled' : 'enabled') : 'unknown',
     executable: meta.program || '',
-    pid: meta.pid || null,
+    pid: meta.pid,
     provider: 'launchd',
     domain: meta.domain,
     raw: meta.raw,
-  };
+    canStart: !meta.pid,
+    canStop: Boolean(meta.pid),
+    canRestart: true,
+    canEnable: isDisabled,
+    canDisable: isEnabled,
+  } satisfies LaunchdService;
 }
 
-function parseLaunchctlList(output) {
+function parseLaunchctlList(output: string): LaunchdService[] {
   const lines = output
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) => !line.startsWith('PID'));
 
-  const services = [];
+  const services: LaunchdService[] = [];
 
   for (const line of lines) {
     const match = line.match(/^(\-?|\d+)\s+(-?\d+)\s+(.+)$/);
@@ -109,7 +156,7 @@ function parseLaunchctlList(output) {
       id: label,
       name: label,
       description: '',
-      status: isRunning ? 'active' : statusCode === 0 ? 'inactive' : 'failed',
+      status: (isRunning ? 'active' : statusCode === 0 ? 'inactive' : 'failed') as ServiceInfo['status'],
       statusLabel: isRunning ? `running (pid ${pid})` : statusCode === 0 ? 'inactive' : `exit ${statusCode}`,
       startupType: 'unknown',
       executable: '',
@@ -119,6 +166,8 @@ function parseLaunchctlList(output) {
       canStart: !isRunning,
       canStop: isRunning,
       canRestart: true,
+      canEnable: false,
+      canDisable: false,
       raw: { pid, status: statusCode, label },
     });
   }
@@ -126,13 +175,14 @@ function parseLaunchctlList(output) {
   return services;
 }
 
-async function readServiceMetadata(serviceId) {
+async function readServiceMetadata(serviceId: string): Promise<LaunchctlMetadata | null> {
   const domains = buildDomainCandidates(serviceId);
 
   for (const domain of domains) {
     try {
       const { stdout } = await execFileAsync('launchctl', ['print', domain], {
         maxBuffer: 1024 * 1024 * 4,
+        encoding: 'utf8',
       });
       return parseLaunchctlPrint(stdout, domain);
     } catch (error) {
@@ -143,26 +193,36 @@ async function readServiceMetadata(serviceId) {
   return null;
 }
 
-async function executeActionForDomain(domain, action) {
+async function executeActionForDomain(domain: string, action: ServiceAction): Promise<void> {
   if (action === 'start') {
-    await execFileAsync('launchctl', ['kickstart', domain], { maxBuffer: 1024 * 1024 });
+    await execFileAsync('launchctl', ['kickstart', domain], { maxBuffer: 1024 * 1024, encoding: 'utf8' });
     return;
   }
 
   if (action === 'restart') {
-    await execFileAsync('launchctl', ['kickstart', '-k', domain], { maxBuffer: 1024 * 1024 });
+    await execFileAsync('launchctl', ['kickstart', '-k', domain], { maxBuffer: 1024 * 1024, encoding: 'utf8' });
     return;
   }
 
   if (action === 'stop') {
-    await execFileAsync('launchctl', ['kill', 'SIGTERM', domain], { maxBuffer: 1024 * 1024 });
+    await execFileAsync('launchctl', ['kill', 'SIGTERM', domain], { maxBuffer: 1024 * 1024, encoding: 'utf8' });
+    return;
+  }
+
+  if (action === 'enable') {
+    await execFileAsync('launchctl', ['enable', domain], { maxBuffer: 1024 * 1024, encoding: 'utf8' });
+    return;
+  }
+
+  if (action === 'disable') {
+    await execFileAsync('launchctl', ['disable', domain], { maxBuffer: 1024 * 1024, encoding: 'utf8' });
     return;
   }
 
   throw new Error(`Unsupported action: ${action}`);
 }
 
-function parseLaunchctlPrint(output, domain) {
+function parseLaunchctlPrint(output: string, domain: string): LaunchctlMetadata {
   const programMatch = output.match(/"?program"?\s*=\s*"([^"\n]+)"/);
   const progArgsMatch = output.match(/"?program arguments"?\s*=\s*\(([^)]+)\)/);
   const disabledMatch = output.match(/"?disabled"?\s*=\s*(true|false)/i);
@@ -197,7 +257,7 @@ function parseLaunchctlPrint(output, domain) {
   };
 }
 
-function buildDomainCandidates(serviceId) {
+function buildDomainCandidates(serviceId: string): string[] {
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
   const domains = [`system/${serviceId}`];
 
@@ -210,22 +270,26 @@ function buildDomainCandidates(serviceId) {
   return domains;
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
   if (!Array.isArray(items) || items.length === 0) {
     return [];
   }
 
   const concurrency = Math.max(1, Math.min(limit, items.length));
-  const results = new Array(items.length);
+  const results = new Array<R>(items.length);
   let index = 0;
 
-  async function worker() {
+  async function worker(): Promise<void> {
     while (index < items.length) {
       const currentIndex = index++;
       try {
         results[currentIndex] = await mapper(items[currentIndex], currentIndex);
       } catch (error) {
-        results[currentIndex] = items[currentIndex];
+        results[currentIndex] = items[currentIndex] as unknown as R;
       }
     }
   }
@@ -234,10 +298,4 @@ async function mapWithConcurrency(items, limit, mapper) {
   await Promise.all(workers);
   return results;
 }
-
-module.exports = {
-  listServices,
-  controlService,
-  getServiceDetails,
-};
 

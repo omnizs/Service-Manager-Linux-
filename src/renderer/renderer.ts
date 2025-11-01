@@ -1,4 +1,44 @@
-const state = {
+import type { ServiceAction, ServiceInfo, ServiceListFilters } from '../types/service';
+
+type ToastType = 'info' | 'success' | 'error';
+
+interface AppState {
+  services: ServiceInfo[];
+  filtered: ServiceInfo[];
+  selectedId: string | null;
+  loading: boolean;
+  pollInterval: number;
+  pollTimer: ReturnType<typeof setInterval> | null;
+  lastUpdated: Date | null;
+}
+
+interface DetailAction {
+  label?: string;
+  handler: () => void;
+}
+
+type AppendDetailOptions =
+  | string
+  | {
+      valueClass?: string;
+      action?: DetailAction | null;
+    }
+  | undefined;
+
+interface DomRefs {
+  tableBody: HTMLTableSectionElement;
+  searchInput: HTMLInputElement;
+  statusFilter: HTMLSelectElement;
+  lastUpdated: HTMLElement;
+  serviceCount: HTMLElement;
+  detailsPane: HTMLElement;
+  refreshButton: HTMLButtonElement;
+  statusText: HTMLElement;
+  indicatorDot: HTMLElement;
+  toastContainer: HTMLElement;
+}
+
+const state: AppState = {
   services: [],
   filtered: [],
   selectedId: null,
@@ -8,49 +48,59 @@ const state = {
   lastUpdated: null,
 };
 
-const dom = {};
+const dom = {} as DomRefs;
 
 document.addEventListener('DOMContentLoaded', () => {
   cacheDom();
   bindEvents();
-  refreshServices({ showLoader: true });
+  void refreshServices({ showLoader: true });
   startPolling();
   window.addEventListener('beforeunload', stopPolling);
 });
 
-function cacheDom() {
-  dom.tableBody = document.getElementById('servicesTableBody');
-  dom.searchInput = document.getElementById('searchInput');
-  dom.statusFilter = document.getElementById('statusFilter');
-  dom.lastUpdated = document.getElementById('lastUpdated');
-  dom.serviceCount = document.getElementById('serviceCount');
-  dom.detailsPane = document.getElementById('detailsPane');
-  dom.refreshButton = document.getElementById('refreshButton');
-  dom.statusText = document.getElementById('statusText');
-  dom.indicatorDot = document.getElementById('indicatorDot');
-  dom.toastContainer = document.getElementById('toastContainer');
+function cacheDom(): void {
+  dom.tableBody = getElement<HTMLTableSectionElement>('servicesTableBody');
+  dom.searchInput = getElement<HTMLInputElement>('searchInput');
+  dom.statusFilter = getElement<HTMLSelectElement>('statusFilter');
+  dom.lastUpdated = getElement<HTMLElement>('lastUpdated');
+  dom.serviceCount = getElement<HTMLElement>('serviceCount');
+  dom.detailsPane = getElement<HTMLElement>('detailsPane');
+  dom.refreshButton = getElement<HTMLButtonElement>('refreshButton');
+  dom.statusText = getElement<HTMLElement>('statusText');
+  dom.indicatorDot = getElement<HTMLElement>('indicatorDot');
+  dom.toastContainer = getElement<HTMLElement>('toastContainer');
 }
 
-function bindEvents() {
+function getElement<T extends HTMLElement>(id: string): T {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`Missing required element #${id}`);
+  }
+  return el as T;
+}
+
+function bindEvents(): void {
   const debouncedFilter = debounce(applyFilters, 180);
   dom.searchInput.addEventListener('input', debouncedFilter);
   dom.statusFilter.addEventListener('change', applyFilters);
-  dom.refreshButton.addEventListener('click', () => refreshServices({ showLoader: true }));
+  dom.refreshButton.addEventListener('click', () => void refreshServices({ showLoader: true }));
 }
 
-function startPolling() {
+function startPolling(): void {
   stopPolling();
-  state.pollTimer = setInterval(() => refreshServices({ showLoader: false }), state.pollInterval);
+  state.pollTimer = setInterval(() => {
+    void refreshServices({ showLoader: false });
+  }, state.pollInterval);
 }
 
-function stopPolling() {
+function stopPolling(): void {
   if (state.pollTimer) {
     clearInterval(state.pollTimer);
     state.pollTimer = null;
   }
 }
 
-async function refreshServices({ showLoader }) {
+async function refreshServices({ showLoader }: { showLoader: boolean }): Promise<void> {
   if (state.loading) return;
 
   setLoading(true, showLoader);
@@ -58,10 +108,11 @@ async function refreshServices({ showLoader }) {
     const response = await window.serviceAPI.listServices({
       search: dom.searchInput.value.trim() || undefined,
       status: dom.statusFilter.value,
-    });
+    } satisfies ServiceListFilters);
 
     if (!response || !response.ok) {
-      throw response && response.error ? new Error(response.error.message || 'Failed to load services') : new Error('Unexpected response');
+      const message = response?.error?.message ?? 'Failed to load services';
+      throw new Error(message);
     }
 
     state.services = Array.isArray(response.data) ? response.data : [];
@@ -69,26 +120,25 @@ async function refreshServices({ showLoader }) {
     applyFilters();
   } catch (error) {
     console.error('Failed to refresh services', error);
-    showToast(error.message || 'Unable to load services', 'error');
+    const message = error instanceof Error ? error.message : 'Unable to load services';
+    showToast(message, 'error');
   } finally {
     setLoading(false, showLoader);
   }
 }
 
-function applyFilters() {
+function applyFilters(): void {
   const search = dom.searchInput.value.trim().toLowerCase();
   const status = dom.statusFilter.value;
 
   let filtered = state.services.slice();
 
   if (search) {
-    filtered = filtered.filter((item) => {
-      return (
-        item.name.toLowerCase().includes(search) ||
-        (item.description && item.description.toLowerCase().includes(search)) ||
-        (item.executable && item.executable.toLowerCase().includes(search))
-      );
-    });
+    filtered = filtered.filter((item) =>
+      item.name.toLowerCase().includes(search) ||
+      (item.description && item.description.toLowerCase().includes(search)) ||
+      (item.executable && item.executable.toLowerCase().includes(search))
+    );
   }
 
   if (status && status !== 'all') {
@@ -101,7 +151,7 @@ function applyFilters() {
   updateFooter();
 
   if (state.selectedId) {
-    const current = state.filtered.find((item) => item.id === state.selectedId);
+    const current = state.filtered.find((item) => item.id === state.selectedId) ?? null;
     if (!current) {
       state.selectedId = null;
       renderDetails(null);
@@ -111,7 +161,7 @@ function applyFilters() {
   }
 }
 
-function renderTable() {
+function renderTable(): void {
   dom.tableBody.innerHTML = '';
 
   if (!state.filtered.length) {
@@ -132,7 +182,7 @@ function renderTable() {
       row.classList.add('selected');
     }
 
-    row.addEventListener('click', () => selectService(service));
+    row.addEventListener('click', () => void selectService(service));
 
     row.appendChild(createCell(service.name, 'cell-name'));
     row.appendChild(createStatusCell(service));
@@ -145,7 +195,7 @@ function renderTable() {
   });
 }
 
-function createCell(content, className = '', monospace = false) {
+function createCell(content: string, className = '', monospace = false): HTMLTableCellElement {
   const cell = document.createElement('td');
   if (className) cell.className = className;
   if (monospace) {
@@ -159,7 +209,7 @@ function createCell(content, className = '', monospace = false) {
   return cell;
 }
 
-function createStatusCell(service) {
+function createStatusCell(service: ServiceInfo): HTMLTableCellElement {
   const cell = document.createElement('td');
   cell.className = 'cell-status';
 
@@ -171,37 +221,51 @@ function createStatusCell(service) {
   return cell;
 }
 
-function createActionsCell(service) {
+function createActionsCell(service: ServiceInfo): HTMLTableCellElement {
   const cell = document.createElement('td');
   cell.className = 'cell-actions';
 
   const startBtn = createActionButton('Start', 'start', service.canStart);
   const stopBtn = createActionButton('Stop', 'stop', service.canStop);
   const restartBtn = createActionButton('Restart', 'restart', service.canRestart);
+  const enableBtn = createActionButton('Enable', 'enable', service.canEnable);
+  const disableBtn = createActionButton('Disable', 'disable', service.canDisable);
 
   startBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    handleAction('start', service);
+    void handleAction('start', service);
   });
 
   stopBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    handleAction('stop', service);
+    void handleAction('stop', service);
   });
 
   restartBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    handleAction('restart', service);
+    void handleAction('restart', service);
+  });
+
+  enableBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    void handleAction('enable', service);
+  });
+
+  disableBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    void handleAction('disable', service);
   });
 
   cell.appendChild(startBtn);
   cell.appendChild(stopBtn);
   cell.appendChild(restartBtn);
+  cell.appendChild(enableBtn);
+  cell.appendChild(disableBtn);
 
   return cell;
 }
 
-function createActionButton(label, action, enabled) {
+function createActionButton(label: string, action: ServiceAction, enabled: boolean): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `action-button action-${action}`;
@@ -210,7 +274,7 @@ function createActionButton(label, action, enabled) {
   return button;
 }
 
-async function selectService(service) {
+async function selectService(service: ServiceInfo): Promise<void> {
   state.selectedId = service.id;
   renderTable();
   renderDetails(service);
@@ -218,7 +282,7 @@ async function selectService(service) {
   try {
     const response = await window.serviceAPI.getServiceDetails(service.id);
     if (response && response.ok && response.data) {
-      const updatedService = {
+      const updatedService: ServiceInfo = {
         ...service,
         ...response.data,
       };
@@ -229,7 +293,7 @@ async function selectService(service) {
   }
 }
 
-function renderDetails(service) {
+function renderDetails(service: ServiceInfo | null): void {
   dom.detailsPane.innerHTML = '';
 
   if (!service) {
@@ -259,7 +323,7 @@ function renderDetails(service) {
           valueClass: 'monospace',
           action: {
             label: 'Show in File Browser',
-            handler: () => window.serviceAPI.openPath(service.unitFile),
+            handler: () => window.serviceAPI.openPath(service.unitFile as string),
           },
         }
       : undefined
@@ -268,9 +332,9 @@ function renderDetails(service) {
   dom.detailsPane.appendChild(list);
 }
 
-function appendDetail(list, label, value, options = undefined) {
+function appendDetail(list: HTMLDListElement, label: string, value: string, options?: AppendDetailOptions): void {
   let valueClass = '';
-  let action = null;
+  let action: DetailAction | null = null;
 
   if (typeof options === 'string') {
     valueClass = options;
@@ -307,7 +371,7 @@ function appendDetail(list, label, value, options = undefined) {
   list.appendChild(dd);
 }
 
-function updateFooter() {
+function updateFooter(): void {
   const count = state.filtered.length;
   dom.serviceCount.textContent = `${count} ${count === 1 ? 'service' : 'services'}`;
   dom.lastUpdated.textContent = state.lastUpdated
@@ -315,7 +379,7 @@ function updateFooter() {
     : 'Last updated: —';
 }
 
-function setLoading(isLoading, showIndicator) {
+function setLoading(isLoading: boolean, showIndicator: boolean): void {
   state.loading = isLoading;
   if (!showIndicator) return;
 
@@ -328,40 +392,43 @@ function setLoading(isLoading, showIndicator) {
   }
 }
 
-async function handleAction(action, service) {
+async function handleAction(action: ServiceAction, service: ServiceInfo): Promise<void> {
   try {
     const response = await window.serviceAPI.controlService(service.id, action);
     if (!response || !response.ok) {
-      const message = response && response.error ? response.error.message : 'Action failed';
+      const message = response?.error?.message ?? 'Action failed';
       throw new Error(message);
     }
     showToast(`${capitalize(action)} requested for ${service.name}`, 'success');
     await refreshServices({ showLoader: false });
   } catch (error) {
     console.error(`Failed to ${action} service`, error);
-    showToast(error.message || `Unable to ${action} service`, 'error');
+    const message = error instanceof Error ? error.message : `Unable to ${action} service`;
+    showToast(message, 'error');
   }
 }
 
-function formatStartupType(value) {
+function formatStartupType(value: string | undefined): string {
   if (!value) return 'Unknown';
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function debounce(fn, wait) {
-  let timeout = null;
-  return (...args) => {
-    clearTimeout(timeout);
+function debounce<T extends (...args: never[]) => void>(fn: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
     timeout = setTimeout(() => fn(...args), wait);
   };
 }
 
-function capitalize(value) {
+function capitalize(value: string): string {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function showToast(message, type = 'info') {
+function showToast(message: string, type: ToastType = 'info'): void {
   if (!dom.toastContainer) return;
 
   const toast = document.createElement('div');
@@ -377,9 +444,7 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.classList.remove('visible');
     setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
+      toast.remove();
     }, 300);
   }, 3200);
 }
