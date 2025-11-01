@@ -34,33 +34,14 @@ body {
   padding: 24px 28px 12px;
 }
 
-.app-header .left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.app-icon {
-  width: 48px;
-  height: 48px;
-  filter: drop-shadow(0 2px 8px rgba(79, 124, 255, 0.4));
-  transition: transform 0.3s ease, filter 0.3s ease;
-}
-
-.app-icon:hover {
-  transform: scale(1.05);
-  filter: drop-shadow(0 4px 12px rgba(79, 124, 255, 0.6));
-}
-
-.header-text {
-  display: flex;
-  flex-direction: column;
-}
-
 .app-header h1 {
   margin: 0;
   font-size: 1.75rem;
   font-weight: 600;
+  background: linear-gradient(135deg, #4f7cff 0%, #7c9fff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .subtitle {
@@ -478,8 +459,29 @@ dd.monospace {
   padding: 16px 28px 24px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(16, 18, 26, 0.4);
+}
+
+.footer-left,
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.separator {
+  opacity: 0.4;
+  user-select: none;
+}
+
+#performanceInfo {
+  font-family: 'Courier New', monospace;
+  color: var(--color-accent);
+  font-weight: 500;
 }
 
 #toastContainer {

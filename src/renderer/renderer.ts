@@ -38,6 +38,8 @@ interface DomRefs {
   statusText: HTMLElement;
   indicatorDot: HTMLElement;
   toastContainer: HTMLElement;
+  platformInfo: HTMLElement;
+  performanceInfo: HTMLElement;
 }
 
 const state: AppState = {
@@ -74,6 +76,13 @@ function cacheDom(): void {
   dom.statusText = getElement<HTMLElement>('statusText');
   dom.indicatorDot = getElement<HTMLElement>('indicatorDot');
   dom.toastContainer = getElement<HTMLElement>('toastContainer');
+  dom.platformInfo = getElement<HTMLElement>('platformInfo');
+  dom.performanceInfo = getElement<HTMLElement>('performanceInfo');
+  
+  // Set platform info
+  const platform = navigator.platform || 'Unknown';
+  const os = platform.includes('Win') ? 'Windows' : platform.includes('Mac') ? 'macOS' : 'Linux';
+  dom.platformInfo.textContent = os;
 }
 
 function getElement<T extends HTMLElement>(id: string): T {
@@ -133,6 +142,7 @@ function stopPolling(): void {
 async function refreshServices({ showLoader }: { showLoader: boolean }): Promise<void> {
   if (state.loading) return;
 
+  const startTime = performance.now();
   setLoading(true, showLoader);
   try {
     const response = await window.serviceAPI.listServices({
@@ -147,11 +157,17 @@ async function refreshServices({ showLoader }: { showLoader: boolean }): Promise
 
     state.services = Array.isArray(response.data) ? response.data : [];
     state.lastUpdated = new Date();
+    
+    const endTime = performance.now();
+    const loadTime = Math.round(endTime - startTime);
+    dom.performanceInfo.textContent = `Loaded in ${loadTime}ms`;
+    
     applyFilters();
   } catch (error) {
     console.error('Failed to refresh services', error);
     const message = error instanceof Error ? error.message : 'Unable to load services';
     showToast(message, 'error');
+    dom.performanceInfo.textContent = 'Load failed';
   } finally {
     setLoading(false, showLoader);
   }

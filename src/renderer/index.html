@@ -13,11 +13,8 @@
   <body>
     <header class="app-header">
       <div class="left">
-        <img src="../../assets/icons/icon-64.png" alt="Service Manager" class="app-icon" />
-        <div class="header-text">
-          <h1>Service Manager</h1>
-          <p class="subtitle">Cross-platform control for system services</p>
-        </div>
+        <h1>Service Manager</h1>
+        <p class="subtitle">Cross-platform control for system services</p>
       </div>
       <div class="right">
         <div class="indicator">
@@ -79,8 +76,16 @@
     </main>
 
     <footer class="app-footer">
-      <span id="lastUpdated">Last updated: —</span>
-      <span id="serviceCount">0 services</span>
+      <div class="footer-left">
+        <span id="lastUpdated">Last updated: —</span>
+        <span class="separator">•</span>
+        <span id="serviceCount">0 services</span>
+        <span class="separator">•</span>
+        <span id="platformInfo">—</span>
+      </div>
+      <div class="footer-right">
+        <span id="performanceInfo">—</span>
+      </div>
     </footer>
 
     <div id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
