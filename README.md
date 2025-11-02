@@ -2,19 +2,6 @@
 
 Service Manager is a cross-platform Electron application that offers a single, secure interface for discovering and managing system services on Linux (systemd), Windows (Service Control Manager), and macOS (launchd).
 
-## Features
-
-- 🔍 **Real-time service overview** with name, status, startup type, executable, and description
-- 🔎 **Search and filter** by name, description, or status
-- ⚡ **Service control** - start, stop, restart services with automatic privilege elevation
-- 🔧 **Startup management** - enable/disable services to control boot behavior
-- 📊 **Pagination support** - efficiently handle systems with hundreds of services
-- 🎨 **Responsive UI** - adaptive layout with text truncation and tooltips for long paths
-- 🔄 **Intelligent polling** - automatic updates every 5 seconds (pauses when window not focused)
-- 📁 **File browser integration** - open service/unit definition files directly
-- ⌨️ **Keyboard shortcuts** - Ctrl+R to refresh, Ctrl+F to search, Escape to clear selection
-- 🔒 **Enhanced security** - Input validation, rate limiting, and command injection prevention
-
 ## Installation
 
 ### From npm
@@ -41,9 +28,11 @@ npm start
 Service Manager can manage most services without elevated privileges, but some operations may require administrator/root access:
 
 ### Windows
-**Recommended:** Right-click the application and select "Run as administrator"
-- The application will show a warning on startup if not running with administrator privileges
-- Some service operations will fail without elevation
+**Automatic (v1.6.0+):** The application automatically requests administrator privileges via UAC prompt when launched from the command line or npm start.
+
+**Alternative:** Right-click the application executable and select "Run as administrator"
+
+**Note:** You can bypass automatic elevation with the `--no-elevation` flag if needed.
 
 ### macOS
 ```bash
@@ -101,7 +90,86 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 1.5.2 (Latest)
+### Version 2.0.0 (Latest)
+
+**Major UI Redesign - Minimalist Edition:**
+- Stopped services now displayed in **red** for immediate visibility
+- Redesigned action buttons with colored backgrounds and better visual hierarchy
+- Enhanced hover effects with subtle elevation
+
+**Backend Improvements:**
+- **Enhanced Error Handling**:
+  - Added retry logic with exponential backoff for transient failures
+  - Implemented circuit breaker pattern to prevent cascading failures
+  - Categorized errors (Network, Permission, Timeout, etc.) for better UX
+  - Added timeout protection for all operations (30s default)
+  - Better error messages with sensitive path sanitization
+- **Performance Optimizations**:
+  - Improved caching with size limits and better invalidation
+  - Map-based cache for multiple filter combinations
+  - Circuit breaker for failing service operations
+  - Configurable operation timeouts and rate limits
+- **Code Organization**:
+  - Centralized configuration in `src/main/config.ts`
+  - Extracted error handling utilities to `src/utils/errorHandler.ts`
+  - Better JSDoc documentation throughout
+  - Enhanced type safety with error categories
+  - Audit logging improvements
+
+**Major UI Redesign:**
+- **Complete visual overhaul** with ultra-minimalist, Scandinavian-inspired design
+- **Monochrome palette**: Pure blacks, whites, and subtle grays with minimal accent color
+- **Abundant whitespace**: Generous spacing for breathing room and clarity
+- **Flat design**: Removed all gradients, shadows, and complex effects
+- **Simple typography**: Consistent sizing, increased line-height (1.8), minimal font weights
+- **Subtle borders**: Clean 1px borders only, no rounded corners or heavy effects
+- **Minimal animations**: Removed ripple effects, kept only essential transitions
+- **Text-based status**: Flat status badges with color-coded text
+- **Simplified header**: Removed subtitle, flattened buttons, minimalist status indicator
+- **Clean table**: List-style rows with border separators, no background colors
+- **Streamlined actions**: Flat buttons with simple hover opacity changes
+- **Refined details panel**: More whitespace, cleaner typography
+- **Professional aesthetic**: Focuses user attention on content, not decoration
+
+**Design Philosophy:**
+This release represents a fundamental shift toward minimalism - removing visual noise and embracing simplicity. Every element has been reconsidered with the question: "Is this essential?" The result is a clean, professional interface that prioritizes content and usability over decoration.
+
+### Version 1.6.0
+
+**Features:**
+- **Automatic Windows Elevation**: Application now automatically requests administrator privileges on Windows via UAC prompt
+- **Virtual Scrolling**: Dramatically improved performance for large service lists (500+ services)
+  - Only renders visible rows plus buffer
+  - 70-80% reduction in DOM nodes for large datasets
+  - Smooth scrolling performance maintained even with thousands of services
+- **Enhanced Animations**: Added smooth microinteractions and visual feedback throughout the UI
+  - Ripple effects on button clicks
+  - Smooth fade-in animations for table rows
+  - Improved transition effects
+- **Better Accessibility**: Enhanced focus indicators and keyboard navigation support
+- **Performance Monitoring**: Real-time load time display in footer
+- **Skeleton Loading States**: CSS framework for skeleton loading screens (future use)
+
+**Performance Improvements:**
+- Virtual scrolling automatically enabled for lists with 500+ items
+- Optimized re-rendering with requestAnimationFrame
+- Reduced memory footprint with intelligent row recycling
+- Faster table updates with improved DOM manipulation
+
+**UI/UX Enhancements:**
+- Added ripple effect animations on action buttons
+- Improved scrollbar styling with smooth hover transitions
+- Better focus states for keyboard navigation
+- Enhanced visual feedback for user interactions
+- Smooth scroll behavior in table container
+
+**Developer Experience:**
+- Better TypeScript type safety in renderer
+- Improved code organization for virtual scrolling
+- JSDoc comments for new functions
+- Cleaner separation of rendering modes (pagination vs virtual scrolling)
+
+### Version 1.5.2
 
 **Features:**
 - Added automatic elevated privilege detection on startup

@@ -50,6 +50,7 @@ export interface SerializedError {
   code?: string | number;
   stderr?: string;
   stdout?: string;
+  category?: string;
 }
 
 export interface IpcResponse<T> {
