@@ -30,19 +30,31 @@ const execFileAsync = promisify(execFile) as ExecFileAsync;
 const POWERSHELL = 'powershell.exe';
 const SUPPORTED_ACTIONS: ReadonlySet<ServiceAction> = new Set(['start', 'stop', 'restart', 'enable', 'disable']);
 
+// PowerShell execution options with proper encoding
+const PS_EXEC_OPTIONS = {
+  maxBuffer: 1024 * 1024 * 8,
+  windowsHide: true,
+  encoding: 'utf8' as const,
+  env: {
+    ...process.env,
+    // Force PowerShell to use UTF-8 encoding
+    LC_ALL: 'en_US.UTF-8',
+    LANG: 'en_US.UTF-8',
+  },
+};
+
 export async function listServices({ search, status }: ServiceListFilters = {}): Promise<ServiceInfo[]> {
   const ps = [
-    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;",
+    "$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;",
+    "$PSDefaultParameterValues['*:Encoding'] = 'utf8';",
     'Get-CimInstance -ClassName Win32_Service',
     '| Select-Object Name, DisplayName, State, StartMode, PathName, Description, ProcessId',
     '| ConvertTo-Json -Depth 2',
   ].join(' ');
 
   const { stdout } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', ps], {
+    ...PS_EXEC_OPTIONS,
     maxBuffer: 1024 * 1024 * 32,
-    windowsHide: true,
-    env: process.env,
-    encoding: 'utf8',
   });
 
   const raw = parseJson<RawWindowsService | RawWindowsService[]>(stdout);
@@ -86,12 +98,7 @@ export async function controlService(
   const command = buildControlCommand(serviceId, action);
 
   try {
-    const { stdout, stderr } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', command], {
-      maxBuffer: 1024 * 1024 * 8,
-      windowsHide: true,
-      env: process.env,
-      encoding: 'utf8',
-    });
+    const { stdout, stderr } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', command], PS_EXEC_OPTIONS);
 
     return {
       action,
@@ -131,16 +138,13 @@ export async function getServiceDetails(serviceId: string): Promise<ServiceInfo 
   }
 
   const ps = [
-    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;",
+    "$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;",
+    "$PSDefaultParameterValues['*:Encoding'] = 'utf8';",
     `Get-CimInstance -ClassName Win32_Service -Filter "Name = '${escapePSString(serviceId)}'"`,
     '| ConvertTo-Json -Depth 3',
   ].join(' ');
 
-  const { stdout } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', ps], {
-    maxBuffer: 1024 * 1024 * 8,
-    windowsHide: true,
-    encoding: 'utf8',
-  });
+  const { stdout } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', ps], PS_EXEC_OPTIONS);
 
   const raw = parseJson<RawWindowsService>(stdout);
   if (!raw) return null;
@@ -192,20 +196,30 @@ function normalizePath(input: string): string {
 
 function buildControlCommand(serviceId: string, action: ServiceAction): string {
   const escaped = escapePSString(serviceId);
+  const encodingPrefix = "$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $PSDefaultParameterValues['*:Encoding'] = 'utf8'; $ErrorActionPreference = 'Stop';";
+  
+  let command: string;
   switch (action) {
     case 'start':
-      return `Start-Service -Name '${escaped}'`;
+      command = `Start-Service -Name '${escaped}'`;
+      break;
     case 'stop':
-      return `Stop-Service -Name '${escaped}' -Force`;
+      command = `Stop-Service -Name '${escaped}' -Force`;
+      break;
     case 'restart':
-      return `Restart-Service -Name '${escaped}' -Force`;
+      command = `Restart-Service -Name '${escaped}' -Force`;
+      break;
     case 'enable':
-      return `Set-Service -Name '${escaped}' -StartupType Automatic`;
+      command = `Set-Service -Name '${escaped}' -StartupType Automatic`;
+      break;
     case 'disable':
-      return `Set-Service -Name '${escaped}' -StartupType Disabled`;
+      command = `Set-Service -Name '${escaped}' -StartupType Disabled`;
+      break;
     default:
       throw new Error(`Unsupported action: ${action}`);
   }
+  
+  return `${encodingPrefix} ${command}`;
 }
 
 function escapePSString(value: string): string {

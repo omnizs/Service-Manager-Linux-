@@ -76,7 +76,14 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 1.5.0 (Latest)
+### Version 1.5.1 (Latest)
+
+**Bug Fixes:**
+- Fixed PowerShell encoding issues on Windows (UTF-8 handling for non-English error messages)
+- Improved error message handling for Windows services with proper encoding
+- Added `$ErrorActionPreference = 'Stop'` to catch PowerShell errors correctly
+
+### Version 1.5.0
 
 **Security Enhancements:**
 - Added comprehensive input validation for service IDs, paths, and search queries
