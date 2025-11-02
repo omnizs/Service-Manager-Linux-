@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, session } from 'electron';
 import path from 'node:path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { controlService, getServiceDetails, listServices } from './services';
 import type {
@@ -18,6 +20,8 @@ import {
   RateLimiter,
 } from '../utils/validation';
 
+const execAsync = promisify(exec);
+
 interface ServicesControlPayload {
   serviceId: string;
   action: ServiceAction;
@@ -31,6 +35,76 @@ let servicesCache: { data: ServiceInfo[]; timestamp: number } | null = null;
 const CACHE_TTL_MS = 500;
 
 let mainWindow: BrowserWindow | null = null;
+
+/**
+ * Check if the application is running with elevated privileges
+ */
+async function checkElevatedPrivileges(): Promise<boolean> {
+  try {
+    if (process.platform === 'win32') {
+      // On Windows, try to read a registry key that requires admin access
+      const { stdout } = await execAsync('net session 2>&1');
+      return !stdout.includes('Access is denied') && !stdout.includes('system error');
+    } else if (process.platform === 'darwin' || process.platform === 'linux') {
+      // On Unix-like systems, check if running as root (UID 0)
+      return process.getuid ? process.getuid() === 0 : false;
+    }
+  } catch (error) {
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Show a warning dialog if not running with elevated privileges
+ */
+async function showPrivilegeWarning(): Promise<void> {
+  const isElevated = await checkElevatedPrivileges();
+  
+  if (!isElevated) {
+    let message: string;
+    let detail: string;
+    
+    if (process.platform === 'win32') {
+      message = 'Administrator Privileges Required';
+      detail = 'Service Manager is not running with administrator privileges.\n\n' +
+               'Many service operations will require elevated permissions. ' +
+               'To avoid permission errors, please:\n\n' +
+               '1. Close this application\n' +
+               '2. Right-click the application icon\n' +
+               '3. Select "Run as administrator"\n\n' +
+               'You can continue without administrator rights, but some operations may fail.';
+    } else if (process.platform === 'darwin') {
+      message = 'Elevated Privileges Recommended';
+      detail = 'Service Manager is not running with elevated privileges.\n\n' +
+               'Some service operations may require administrator permissions. ' +
+               'You may be prompted to enter your password when performing privileged operations.\n\n' +
+               'To run with elevated privileges from the start:\n' +
+               'sudo service-manager';
+    } else {
+      message = 'Root Privileges Recommended';
+      detail = 'Service Manager is not running as root.\n\n' +
+               'Some service operations may require elevated permissions. ' +
+               'You may be prompted to authenticate when performing privileged operations.\n\n' +
+               'To run with elevated privileges from the start:\n' +
+               'sudo service-manager';
+    }
+    
+    await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Service Manager',
+      message,
+      detail,
+      buttons: ['Continue Anyway', 'Exit'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then((result) => {
+      if (result.response === 1) {
+        app.quit();
+      }
+    });
+  }
+}
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -80,7 +154,10 @@ app.whenReady().then(() => {
     });
   });
 
-  createMainWindow();
+  // Check for elevated privileges and show warning if needed
+  void showPrivilegeWarning().then(() => {
+    createMainWindow();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

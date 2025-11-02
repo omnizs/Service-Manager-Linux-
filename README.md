@@ -34,7 +34,32 @@ npm run build
 npm start
 ```
 
-`npm run build` compiles the TypeScript sources into `dist/`, copies static renderer assets, and prepares the Electron entry point. The application will launch in an Electron window. Actions that require elevated privileges may prompt for authentication through the operating system (e.g. `pkexec` on Linux; administrative PowerShell on Windows; `launchctl` permissions on macOS).
+`npm run build` compiles the TypeScript sources into `dist/`, copies static renderer assets, and prepares the Electron entry point. The application will launch in an Electron window.
+
+## Running with Elevated Privileges
+
+Service Manager can manage most services without elevated privileges, but some operations may require administrator/root access:
+
+### Windows
+**Recommended:** Right-click the application and select "Run as administrator"
+- The application will show a warning on startup if not running with administrator privileges
+- Some service operations will fail without elevation
+
+### macOS
+```bash
+sudo service-manager
+# or use the --elevate flag
+service-manager --elevate
+```
+
+### Linux
+```bash
+sudo service-manager
+# or use the --elevate flag
+service-manager --elevate
+```
+
+**Note:** On Linux and macOS, the application will prompt for authentication (via `pkexec` or `sudo`) when performing privileged operations, even if not started with elevated privileges. However, starting with `sudo` prevents repeated authentication prompts.
 
 ## Project Structure
 
@@ -76,7 +101,21 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 1.5.1 (Latest)
+### Version 1.5.2 (Latest)
+
+**Features:**
+- Added automatic elevated privilege detection on startup
+- Display warning dialog if not running with administrator/root privileges
+- Added `--elevate` flag for easy elevation on Unix-like systems
+- Created Windows manifest file for requesting administrator privileges
+- Improved documentation for running with elevated privileges
+
+**Changes:**
+- Application now checks privilege level on startup and warns users
+- Users can choose to continue without elevation or exit to restart with proper privileges
+- Added platform-specific privilege guidance in warning dialogs
+
+### Version 1.5.1
 
 **Bug Fixes:**
 - Fixed PowerShell encoding issues on Windows (UTF-8 handling for non-English error messages)
