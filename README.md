@@ -1,20 +1,6 @@
 # Service Manager
 
 Service Manager is a cross-platform Electron application that offers a single, secure interface for discovering and managing system services on Linux (systemd), Windows (Service Control Manager), and macOS (launchd).
-
-## Features
-
-- 🔍 **Real-time service overview** with name, status, startup type, executable, and description
-- 🔎 **Search and filter** by name, description, or status
-- ⚡ **Service control** - start, stop, restart services with automatic privilege elevation
-- 🔧 **Startup management** - enable/disable services to control boot behavior
-- 📊 **Pagination support** - efficiently handle systems with hundreds of services
-- 🎨 **Responsive UI** - adaptive layout with text truncation and tooltips for long paths
-- 🔄 **Intelligent polling** - automatic updates every 5 seconds (pauses when window not focused)
-- 📁 **File browser integration** - open service/unit definition files directly
-- ⌨️ **Keyboard shortcuts** - Ctrl+R to refresh, Ctrl+F to search, Escape to clear selection
-- 🔒 **Enhanced security** - Input validation, rate limiting, and command injection prevention
-
 ## Installation
 
 ### From npm
