@@ -14,6 +14,10 @@ interface AppState {
   itemsPerPage: number;
   isRefreshing: boolean;
   isWindowFocused: boolean;
+  virtualScrollEnabled: boolean;
+  scrollTop: number;
+  rowHeight: number;
+  visibleRows: number;
 }
 
 interface DetailAction {
@@ -42,6 +46,7 @@ interface DomRefs {
   toastContainer: HTMLElement;
   platformInfo: HTMLElement;
   performanceInfo: HTMLElement;
+  tableContainer: HTMLElement;
 }
 
 const state: AppState = {
@@ -56,6 +61,10 @@ const state: AppState = {
   itemsPerPage: 100,
   isRefreshing: false,
   isWindowFocused: true,
+  virtualScrollEnabled: false,
+  scrollTop: 0,
+  rowHeight: 49, // Average row height in pixels
+  visibleRows: 20, // Number of rows visible in viewport
 };
 
 const dom = {} as DomRefs;
@@ -82,6 +91,14 @@ function cacheDom(): void {
   dom.toastContainer = getElement<HTMLElement>('toastContainer');
   dom.platformInfo = getElement<HTMLElement>('platformInfo');
   dom.performanceInfo = getElement<HTMLElement>('performanceInfo');
+  
+  // Get table container for virtual scrolling
+  const tableContainer = document.querySelector('.table-container');
+  if (tableContainer) {
+    dom.tableContainer = tableContainer as HTMLElement;
+    // Setup scroll listener for virtual scrolling
+    dom.tableContainer.addEventListener('scroll', onTableScroll);
+  }
   
   // Set platform info
   const platform = navigator.platform || 'Unknown';
@@ -211,6 +228,42 @@ async function refreshServices({ showLoader }: { showLoader: boolean }): Promise
   }
 }
 
+/**
+ * Scroll handler for virtual scrolling
+ */
+function onTableScroll(): void {
+  if (!state.virtualScrollEnabled) return;
+  
+  state.scrollTop = dom.tableContainer.scrollTop;
+  
+  // Use requestAnimationFrame for smooth scrolling
+  requestAnimationFrame(() => {
+    renderTable();
+  });
+}
+
+/**
+ * Calculate visible range for virtual scrolling
+ */
+function calculateVisibleRange(): { start: number; end: number; offsetY: number } {
+  if (!state.virtualScrollEnabled) {
+    return { start: 0, end: state.filtered.length, offsetY: 0 };
+  }
+
+  const scrollTop = state.scrollTop;
+  const startIndex = Math.floor(scrollTop / state.rowHeight);
+  const endIndex = Math.min(
+    startIndex + state.visibleRows + 5, // Add buffer rows
+    state.filtered.length
+  );
+  
+  return {
+    start: Math.max(0, startIndex - 2), // Add buffer before
+    end: endIndex,
+    offsetY: Math.max(0, startIndex - 2) * state.rowHeight
+  };
+}
+
 function applyFilters(): void {
   const search = dom.searchInput.value.trim().toLowerCase();
   const status = dom.statusFilter.value;
@@ -231,7 +284,16 @@ function applyFilters(): void {
   }
 
   state.filtered = filtered;
+  
+  // Enable virtual scrolling for large lists (500+ items)
+  state.virtualScrollEnabled = filtered.length >= 500;
+  
   state.currentPage = 1; // Reset to first page when filters change
+  state.scrollTop = 0; // Reset scroll position
+  if (dom.tableContainer) {
+    dom.tableContainer.scrollTop = 0;
+  }
+  
   renderTable();
   updateFooter();
 
@@ -263,16 +325,43 @@ function renderTable(): void {
     return;
   }
 
-  // Calculate pagination
-  const totalPages = Math.ceil(state.filtered.length / state.itemsPerPage);
-  const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-  const endIndex = Math.min(startIndex + state.itemsPerPage, state.filtered.length);
-  const pageItems = state.filtered.slice(startIndex, endIndex);
+  // Virtual scrolling for large lists or pagination for smaller ones
+  let pageItems: ServiceInfo[];
+  let startIndex: number;
+  let endIndex: number;
+  let totalPages = 1; // Initialize to avoid TypeScript errors
 
-  // Render only the current page of services using DocumentFragment
-  pageItems.forEach((service) => {
+  if (state.virtualScrollEnabled) {
+    // Virtual scrolling mode
+    const range = calculateVisibleRange();
+    startIndex = range.start;
+    endIndex = range.end;
+    pageItems = state.filtered.slice(startIndex, endIndex);
+    
+    // Create spacer rows for virtual scrolling
+    if (range.offsetY > 0) {
+      const spacerBefore = document.createElement('tr');
+      spacerBefore.style.height = `${range.offsetY}px`;
+      spacerBefore.className = 'virtual-spacer';
+      const spacerCell = document.createElement('td');
+      spacerCell.colSpan = 6;
+      spacerBefore.appendChild(spacerCell);
+      fragment.appendChild(spacerBefore);
+    }
+  } else {
+    // Pagination mode
+    totalPages = Math.ceil(state.filtered.length / state.itemsPerPage);
+    startIndex = (state.currentPage - 1) * state.itemsPerPage;
+    endIndex = Math.min(startIndex + state.itemsPerPage, state.filtered.length);
+    pageItems = state.filtered.slice(startIndex, endIndex);
+  }
+
+  // Render visible rows using DocumentFragment
+  pageItems.forEach((service, index) => {
     const row = document.createElement('tr');
     row.dataset.serviceId = service.id;
+    row.dataset.index = String(startIndex + index);
+    
     if (state.selectedId === service.id) {
       row.classList.add('selected');
     }
@@ -290,12 +379,27 @@ function renderTable(): void {
     fragment.appendChild(row);
   });
 
+  // Add spacer after for virtual scrolling
+  if (state.virtualScrollEnabled) {
+    const range = calculateVisibleRange();
+    const remainingHeight = (state.filtered.length - range.end) * state.rowHeight;
+    if (remainingHeight > 0) {
+      const spacerAfter = document.createElement('tr');
+      spacerAfter.style.height = `${remainingHeight}px`;
+      spacerAfter.className = 'virtual-spacer';
+      const spacerCell = document.createElement('td');
+      spacerCell.colSpan = 6;
+      spacerAfter.appendChild(spacerCell);
+      fragment.appendChild(spacerAfter);
+    }
+  }
+
   // Clear and append in one operation
   dom.tableBody.innerHTML = '';
   dom.tableBody.appendChild(fragment);
 
-  // Show pagination info if there are multiple pages
-  if (totalPages > 1) {
+  // Show pagination info if there are multiple pages (only in pagination mode)
+  if (!state.virtualScrollEnabled && totalPages > 1) {
     const paginationRow = document.createElement('tr');
     paginationRow.className = 'pagination-row';
     const paginationCell = document.createElement('td');

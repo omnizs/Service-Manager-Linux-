@@ -19,6 +19,13 @@ import {
   sanitizeErrorMessage,
   RateLimiter,
 } from '../utils/validation';
+import {
+  withRetry,
+  withTimeout,
+  sanitizeError,
+  CircuitBreaker,
+} from '../utils/errorHandler';
+import { CONFIG } from './config';
 
 const execAsync = promisify(exec);
 
@@ -27,12 +34,23 @@ interface ServicesControlPayload {
   action: ServiceAction;
 }
 
-// Rate limiter for service control operations (200ms cooldown)
-const controlRateLimiter = new RateLimiter(200);
+/**
+ * Cache entry for service list
+ */
+interface CacheEntry {
+  data: ServiceInfo[];
+  timestamp: number;
+}
 
-// Cache for service list (500ms cache)
-let servicesCache: { data: ServiceInfo[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 500;
+// Rate limiter for service control operations
+const controlRateLimiter = new RateLimiter(CONFIG.RATE_LIMIT.CONTROL_COOLDOWN_MS);
+
+// Circuit breaker for service operations
+const serviceCircuitBreaker = new CircuitBreaker(5, 60000);
+
+// Cache for service list with size limit
+const servicesCache = new Map<string, CacheEntry>();
+const MAX_CACHE_SIZE = CONFIG.CACHE.MAX_SIZE;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -106,14 +124,17 @@ async function showPrivilegeWarning(): Promise<void> {
   }
 }
 
+/**
+ * Create the main application window
+ */
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 780,
-    minWidth: 960,
-    minHeight: 600,
+    width: CONFIG.WINDOW.DEFAULT_WIDTH,
+    height: CONFIG.WINDOW.DEFAULT_HEIGHT,
+    minWidth: CONFIG.WINDOW.MIN_WIDTH,
+    minHeight: CONFIG.WINDOW.MIN_HEIGHT,
     show: false,
-    backgroundColor: '#1b1d23',
+    backgroundColor: CONFIG.WINDOW.BACKGROUND_COLOR,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
@@ -127,7 +148,7 @@ function createMainWindow(): void {
   const startURL = path.join(__dirname, '..', 'renderer', 'index.html');
 
   mainWindow.loadFile(startURL).catch((error: unknown) => {
-    console.error('Failed to load renderer', error);
+    console.error('[ERROR] Failed to load renderer:', error);
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -136,6 +157,8 @@ function createMainWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // Clear cache on window close
+    servicesCache.clear();
   });
 }
 
@@ -172,6 +195,29 @@ app.on('window-all-closed', () => {
   }
 });
 
+/**
+ * Get cache key for service list
+ */
+function getCacheKey(filters: ServiceListFilters): string {
+  return JSON.stringify(filters);
+}
+
+/**
+ * Manage cache size
+ */
+function manageCacheSize(): void {
+  if (servicesCache.size > MAX_CACHE_SIZE) {
+    // Remove oldest entry
+    const firstKey = servicesCache.keys().next().value;
+    if (firstKey) {
+      servicesCache.delete(firstKey);
+    }
+  }
+}
+
+/**
+ * IPC Handler: List services
+ */
 ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>> => {
   try {
     // Validate payload
@@ -182,8 +228,8 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
     const filters = payload ?? {};
 
     // Validate search query length
-    if (filters.search && filters.search.length > 1000) {
-      throw new Error('Search query too long');
+    if (filters.search && filters.search.length > CONFIG.VALIDATION.MAX_SEARCH_LENGTH) {
+      throw new Error(`Search query too long (max ${CONFIG.VALIDATION.MAX_SEARCH_LENGTH} characters)`);
     }
 
     // Validate status filter
@@ -191,24 +237,42 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
       throw new Error('Invalid status filter');
     }
 
-    // Check cache (only for non-search queries)
-    if (!filters.search && servicesCache && Date.now() - servicesCache.timestamp < CACHE_TTL_MS) {
-      return { ok: true, data: servicesCache.data };
+    // Check cache if enabled
+    if (CONFIG.CACHE.ENABLED) {
+      const cacheKey = getCacheKey(filters);
+      const cached = servicesCache.get(cacheKey);
+      
+      if (cached && Date.now() - cached.timestamp < CONFIG.CACHE.TTL_MS) {
+        return { ok: true, data: cached.data };
+      }
     }
 
-    const result = await listServices(filters);
+    // Execute with timeout and retry
+    const result = await serviceCircuitBreaker.execute(() =>
+      withTimeout(
+        () => withRetry(() => listServices(filters)),
+        CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
+        'Service list operation timed out'
+      )
+    );
 
-    // Cache result if no search filter
-    if (!filters.search) {
-      servicesCache = { data: result, timestamp: Date.now() };
+    // Cache result
+    if (CONFIG.CACHE.ENABLED) {
+      const cacheKey = getCacheKey(filters);
+      servicesCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      manageCacheSize();
     }
 
     return { ok: true, data: result };
   } catch (error) {
-    return { ok: false, error: serialiseError(error) };
+    console.error('[ERROR] services:list failed:', error);
+    return { ok: false, error: sanitizeError(error) };
   }
 });
 
+/**
+ * IPC Handler: Control service
+ */
 ipcMain.handle(
   'services:control',
   async (_event, payload?: ServicesControlPayload): Promise<IpcResponse<ServiceControlResult>> => {
@@ -239,20 +303,33 @@ ipcMain.handle(
       }
 
       // Invalidate cache on control operations
-      servicesCache = null;
+      servicesCache.clear();
 
-      const result = await controlService(payload.serviceId, payload.action);
+      // Execute with timeout and circuit breaker
+      const result = await serviceCircuitBreaker.execute(() =>
+        withTimeout(
+          () => controlService(payload.serviceId, payload.action),
+          CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
+          'Service control operation timed out'
+        )
+      );
 
-      // Log privileged operation
-      console.log(`[AUDIT] Service control: ${payload.action} on ${payload.serviceId} at ${new Date().toISOString()}`);
+      // Audit log
+      if (CONFIG.SECURITY.AUDIT_ENABLED) {
+        console.log(`[AUDIT] Service control: ${payload.action} on ${payload.serviceId} at ${new Date().toISOString()}`);
+      }
 
       return { ok: true, data: result };
     } catch (error) {
-      return { ok: false, error: serialiseError(error) };
+      console.error(`[ERROR] services:control failed for ${payload?.serviceId}:`, error);
+      return { ok: false, error: sanitizeError(error) };
     }
   }
 );
 
+/**
+ * IPC Handler: Get service details
+ */
 ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<IpcResponse<ServiceInfo | null>> => {
   try {
     // Validate service ID
@@ -264,10 +341,17 @@ ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<I
       throw new Error('Invalid service identifier');
     }
 
-    const result = await getServiceDetails(serviceId);
+    // Execute with timeout
+    const result = await withTimeout(
+      () => getServiceDetails(serviceId),
+      CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
+      'Service details operation timed out'
+    );
+
     return { ok: true, data: result };
   } catch (error) {
-    return { ok: false, error: serialiseError(error) };
+    console.error(`[ERROR] services:details failed for ${serviceId}:`, error);
+    return { ok: false, error: sanitizeError(error) };
   }
 });
 
@@ -321,41 +405,8 @@ ipcMain.handle('app:showErrorDialog', async (_event, message?: unknown) => {
   });
 });
 
-function serialiseError(error: unknown): SerializedError {
-  if (!error || typeof error !== 'object') {
-    return { message: 'Unknown error' };
-  }
-
-  const err = error as Partial<SerializedError> & {
-    stdout?: string | Buffer;
-    stderr?: string | Buffer;
-    message?: string;
-    stack?: string;
-    code?: string | number;
-  };
-
-  // Sanitize error message to remove sensitive information
-  const sanitizedMessage = sanitizeErrorMessage(err.message ?? 'Unexpected error');
-
-  const serialised: SerializedError = {
-    message: sanitizedMessage,
-  };
-
-  // Only include stack traces in development mode
-  if (process.env.NODE_ENV === 'development' && err.stack) {
-    serialised.stack = err.stack;
-  }
-
-  if (err.code !== undefined) serialised.code = err.code;
-  
-  // Sanitize stderr and stdout
-  if (err.stderr) {
-    serialised.stderr = sanitizeErrorMessage(err.stderr.toString());
-  }
-  if (err.stdout) {
-    serialised.stdout = sanitizeErrorMessage(err.stdout.toString());
-  }
-
-  return serialised;
-}
+/**
+ * Legacy error serialization - now handled by sanitizeError from errorHandler
+ * Keeping this wrapper for backwards compatibility if needed
+ */
 
