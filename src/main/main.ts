@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, session } from 'electron';
 import path from 'node:path';
 
 import { controlService, getServiceDetails, listServices } from './services';
@@ -10,21 +10,29 @@ import type {
   ServiceInfo,
   ServiceListFilters,
 } from '../types/service';
+import {
+  isValidServiceId,
+  isValidFilePath,
+  isValidServiceAction,
+  sanitizeErrorMessage,
+  RateLimiter,
+} from '../utils/validation';
 
 interface ServicesControlPayload {
   serviceId: string;
   action: ServiceAction;
 }
 
+// Rate limiter for service control operations (200ms cooldown)
+const controlRateLimiter = new RateLimiter(200);
+
+// Cache for service list (500ms cache)
+let servicesCache: { data: ServiceInfo[]; timestamp: number } | null = null;
+const CACHE_TTL_MS = 500;
+
 let mainWindow: BrowserWindow | null = null;
 
 function createMainWindow(): void {
-  const iconPath = process.platform === 'win32'
-    ? path.join(__dirname, '..', '..', 'assets', 'icons', 'icon.ico')
-    : process.platform === 'darwin'
-    ? path.join(__dirname, '..', '..', 'assets', 'icons', 'icon.icns')
-    : path.join(__dirname, '..', '..', 'assets', 'icons', 'icon-512.png');
-
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 780,
@@ -32,7 +40,6 @@ function createMainWindow(): void {
     minHeight: 600,
     show: false,
     backgroundColor: '#1b1d23',
-    icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
@@ -59,6 +66,20 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Enhanced security settings
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none';"
+        ],
+        'X-Content-Type-Options': ['nosniff'],
+        'X-Frame-Options': ['DENY'],
+      },
+    });
+  });
+
   createMainWindow();
 
   app.on('activate', () => {
@@ -76,7 +97,35 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>> => {
   try {
-    const result = await listServices(payload ?? {});
+    // Validate payload
+    if (payload && typeof payload !== 'object') {
+      throw new Error('Invalid payload type');
+    }
+
+    const filters = payload ?? {};
+
+    // Validate search query length
+    if (filters.search && filters.search.length > 1000) {
+      throw new Error('Search query too long');
+    }
+
+    // Validate status filter
+    if (filters.status && typeof filters.status !== 'string') {
+      throw new Error('Invalid status filter');
+    }
+
+    // Check cache (only for non-search queries)
+    if (!filters.search && servicesCache && Date.now() - servicesCache.timestamp < CACHE_TTL_MS) {
+      return { ok: true, data: servicesCache.data };
+    }
+
+    const result = await listServices(filters);
+
+    // Cache result if no search filter
+    if (!filters.search) {
+      servicesCache = { data: result, timestamp: Date.now() };
+    }
+
     return { ok: true, data: result };
   } catch (error) {
     return { ok: false, error: serialiseError(error) };
@@ -87,11 +136,39 @@ ipcMain.handle(
   'services:control',
   async (_event, payload?: ServicesControlPayload): Promise<IpcResponse<ServiceControlResult>> => {
     try {
-      if (!payload?.serviceId || !payload.action) {
-        throw new Error('Invalid payload for services:control');
+      // Validate payload structure
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('Invalid payload structure');
       }
 
+      if (!payload.serviceId || !payload.action) {
+        throw new Error('Missing required fields: serviceId and action');
+      }
+
+      // Validate service ID
+      if (!isValidServiceId(payload.serviceId)) {
+        throw new Error('Invalid service identifier');
+      }
+
+      // Validate action
+      if (!isValidServiceAction(payload.action)) {
+        throw new Error('Invalid service action');
+      }
+
+      // Rate limiting
+      const rateLimitKey = `${payload.serviceId}:${payload.action}`;
+      if (!controlRateLimiter.isAllowed(rateLimitKey)) {
+        throw new Error('Rate limit exceeded. Please wait before retrying.');
+      }
+
+      // Invalidate cache on control operations
+      servicesCache = null;
+
       const result = await controlService(payload.serviceId, payload.action);
+
+      // Log privileged operation
+      console.log(`[AUDIT] Service control: ${payload.action} on ${payload.serviceId} at ${new Date().toISOString()}`);
+
       return { ok: true, data: result };
     } catch (error) {
       return { ok: false, error: serialiseError(error) };
@@ -101,8 +178,13 @@ ipcMain.handle(
 
 ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<IpcResponse<ServiceInfo | null>> => {
   try {
-    if (!serviceId) {
+    // Validate service ID
+    if (!serviceId || typeof serviceId !== 'string') {
       throw new Error('Service identifier is required');
+    }
+
+    if (!isValidServiceId(serviceId)) {
+      throw new Error('Invalid service identifier');
     }
 
     const result = await getServiceDetails(serviceId);
@@ -113,8 +195,42 @@ ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<I
 });
 
 ipcMain.on('app:openPath', (_event, targetPath: string | undefined) => {
-  if (!targetPath) return;
+  if (!targetPath || typeof targetPath !== 'string') return;
+
+  // Validate file path
+  if (!isValidFilePath(targetPath)) {
+    console.error('[SECURITY] Rejected invalid file path:', sanitizeErrorMessage(targetPath));
+    return;
+  }
+
+  // Additional platform-specific validation
+  const isWindows = process.platform === 'win32';
+  const isDarwin = process.platform === 'darwin';
+  const isLinux = process.platform === 'linux';
+
+  // Whitelist allowed directories
+  const allowedPrefixes: string[] = [];
+  
+  if (isWindows) {
+    allowedPrefixes.push('C:\\Windows\\System32', 'C:\\Program Files');
+  } else if (isDarwin) {
+    allowedPrefixes.push('/Library/LaunchDaemons', '/Library/LaunchAgents', '/System/Library');
+  } else if (isLinux) {
+    allowedPrefixes.push('/etc/systemd', '/lib/systemd', '/usr/lib/systemd');
+  }
+
+  // Check if path starts with allowed prefix
+  const isAllowed = allowedPrefixes.length === 0 || allowedPrefixes.some(prefix => 
+    targetPath.startsWith(prefix)
+  );
+
+  if (!isAllowed) {
+    console.error('[SECURITY] Path not in allowed directories:', sanitizeErrorMessage(targetPath));
+    return;
+  }
+
   shell.showItemInFolder(targetPath);
+  console.log(`[AUDIT] Opened file path at ${new Date().toISOString()}`);
 });
 
 ipcMain.handle('app:showErrorDialog', async (_event, message?: unknown) => {
@@ -141,14 +257,27 @@ function serialiseError(error: unknown): SerializedError {
     code?: string | number;
   };
 
+  // Sanitize error message to remove sensitive information
+  const sanitizedMessage = sanitizeErrorMessage(err.message ?? 'Unexpected error');
+
   const serialised: SerializedError = {
-    message: err.message ?? 'Unexpected error',
+    message: sanitizedMessage,
   };
 
-  if (err.stack) serialised.stack = err.stack;
+  // Only include stack traces in development mode
+  if (process.env.NODE_ENV === 'development' && err.stack) {
+    serialised.stack = err.stack;
+  }
+
   if (err.code !== undefined) serialised.code = err.code;
-  if (err.stderr) serialised.stderr = err.stderr.toString();
-  if (err.stdout) serialised.stdout = err.stdout.toString();
+  
+  // Sanitize stderr and stdout
+  if (err.stderr) {
+    serialised.stderr = sanitizeErrorMessage(err.stderr.toString());
+  }
+  if (err.stdout) {
+    serialised.stdout = sanitizeErrorMessage(err.stdout.toString());
+  }
 
   return serialised;
 }

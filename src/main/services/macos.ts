@@ -7,6 +7,7 @@ import type {
   ServiceInfo,
   ServiceListFilters,
 } from '../../types/service';
+import { isValidServiceId } from '../../utils/validation';
 
 type LaunchdService = ServiceInfo & { domain: string | null };
 
@@ -84,6 +85,11 @@ export async function controlService(
   serviceId: string,
   action: ServiceAction
 ): Promise<ServiceControlResult> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   if (!SUPPORTED_ACTIONS.has(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
@@ -100,14 +106,30 @@ export async function controlService(
     }
   }
 
+  // Provide helpful error message based on the last error
+  if (lastError && typeof lastError === 'object' && 'message' in lastError) {
+    const errMsg = String((lastError as { message?: string }).message || '');
+    if (errMsg.includes('Could not find service') || errMsg.includes('No such process')) {
+      throw new Error(`Service '${serviceId}' not found or not loaded. Try loading it first with 'launchctl load'.`);
+    }
+    if (errMsg.includes('Operation not permitted') || errMsg.includes('Permission denied')) {
+      throw new Error(`Permission denied for service '${serviceId}'. You may need administrative privileges for this operation.`);
+    }
+  }
+
   if (lastError) {
     throw lastError;
   }
 
-  throw new Error(`Unable to execute action '${action}' for ${serviceId}`);
+  throw new Error(`Unable to execute action '${action}' for ${serviceId}. The service may not be loaded or accessible.`);
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   const meta = await readServiceMetadata(serviceId);
   if (!meta) return null;
 
@@ -177,6 +199,7 @@ function parseLaunchctlList(output: string): LaunchdService[] {
 
 async function readServiceMetadata(serviceId: string): Promise<LaunchctlMetadata | null> {
   const domains = buildDomainCandidates(serviceId);
+  let lastError: unknown = null;
 
   for (const domain of domains) {
     try {
@@ -186,8 +209,14 @@ async function readServiceMetadata(serviceId: string): Promise<LaunchctlMetadata
       });
       return parseLaunchctlPrint(stdout, domain);
     } catch (error) {
+      lastError = error;
       continue; // try next domain
     }
+  }
+
+  // Log warning if all domains failed (but don't throw - service may exist without metadata)
+  if (lastError) {
+    console.warn(`Could not read metadata for service ${serviceId}:`, lastError);
   }
 
   return null;
@@ -258,6 +287,12 @@ function parseLaunchctlPrint(output: string, domain: string): LaunchctlMetadata 
 }
 
 function buildDomainCandidates(serviceId: string): string[] {
+  // Validate service ID doesn't contain dangerous patterns
+  // Reject paths with '..' or other traversal attempts
+  if (serviceId.includes('..') || serviceId.includes(';') || serviceId.includes('|')) {
+    throw new Error('Invalid service identifier: contains dangerous patterns');
+  }
+
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
   const domains = [`system/${serviceId}`];
 

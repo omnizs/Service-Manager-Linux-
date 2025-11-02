@@ -7,6 +7,7 @@ import type {
   ServiceInfo,
   ServiceListFilters,
 } from '../../types/service';
+import { isValidServiceId } from '../../utils/validation';
 
 interface RawWindowsService {
   Name: string;
@@ -73,28 +74,62 @@ export async function controlService(
   serviceId: string,
   action: ServiceAction
 ): Promise<ServiceControlResult> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   if (!SUPPORTED_ACTIONS.has(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
 
   const command = buildControlCommand(serviceId, action);
 
-  const { stdout, stderr } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', command], {
-    maxBuffer: 1024 * 1024 * 8,
-    windowsHide: true,
-    env: process.env,
-    encoding: 'utf8',
-  });
+  try {
+    const { stdout, stderr } = await execFileAsync(POWERSHELL, ['-NoProfile', '-Command', command], {
+      maxBuffer: 1024 * 1024 * 8,
+      windowsHide: true,
+      env: process.env,
+      encoding: 'utf8',
+    });
 
-  return {
-    action,
-    serviceId,
-    stdout,
-    stderr,
-  };
+    return {
+      action,
+      serviceId,
+      stdout,
+      stderr,
+    };
+  } catch (error) {
+    // Provide friendly error messages for common Windows service errors
+    if (error && typeof error === 'object' && 'stderr' in error) {
+      const stderr = String((error as { stderr?: string | Buffer }).stderr || '');
+      
+      if (stderr.includes('Cannot find any service') || stderr.includes('does not exist')) {
+        throw new Error(`Service '${serviceId}' not found on this system.`);
+      }
+      if (stderr.includes('Access is denied') || stderr.includes('Access denied')) {
+        throw new Error(`Access denied. Please run the application as Administrator to manage this service.`);
+      }
+      if (stderr.includes('service has not been started') && action === 'stop') {
+        throw new Error(`Service '${serviceId}' is not running.`);
+      }
+      if (stderr.includes('service is already running') && action === 'start') {
+        throw new Error(`Service '${serviceId}' is already running.`);
+      }
+      if (stderr.includes('depends on') || stderr.includes('dependency')) {
+        throw new Error(`Cannot ${action} service '${serviceId}' due to service dependencies. Check dependent services.`);
+      }
+    }
+    throw error;
+  }
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   const ps = [
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;",
     `Get-CimInstance -ClassName Win32_Service -Filter "Name = '${escapePSString(serviceId)}'"`,
@@ -174,6 +209,18 @@ function buildControlCommand(serviceId: string, action: ServiceAction): string {
 }
 
 function escapePSString(value: string): string {
-  return value.replace(/'/g, "''");
+  // Escape single quotes (PowerShell string escaping)
+  let escaped = value.replace(/'/g, "''");
+  
+  // Additional escaping for PowerShell metacharacters
+  // Escape backticks, dollar signs, and other special characters
+  escaped = escaped
+    .replace(/`/g, '``')     // Backtick escape character
+    .replace(/\$/g, '`$')    // Variable expansion
+    .replace(/\n/g, '`n')    // Newlines
+    .replace(/\r/g, '`r')    // Carriage returns
+    .replace(/\t/g, '`t');   // Tabs
+  
+  return escaped;
 }
 

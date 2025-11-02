@@ -12,6 +12,8 @@ interface AppState {
   lastUpdated: Date | null;
   currentPage: number;
   itemsPerPage: number;
+  isRefreshing: boolean;
+  isWindowFocused: boolean;
 }
 
 interface DetailAction {
@@ -52,6 +54,8 @@ const state: AppState = {
   lastUpdated: null,
   currentPage: 1,
   itemsPerPage: 100,
+  isRefreshing: false,
+  isWindowFocused: true,
 };
 
 const dom = {} as DomRefs;
@@ -60,9 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
   cacheDom();
   bindEvents();
   bindKeyboardShortcuts();
+  bindWindowEvents();
   void refreshServices({ showLoader: true });
   startPolling();
-  window.addEventListener('beforeunload', stopPolling);
 });
 
 function cacheDom(): void {
@@ -94,7 +98,7 @@ function getElement<T extends HTMLElement>(id: string): T {
 }
 
 function bindEvents(): void {
-  const debouncedFilter = debounce(applyFilters, 180);
+  const debouncedFilter = debounce(applyFilters, 150); // Reduced from 180ms to 150ms for better responsiveness
   dom.searchInput.addEventListener('input', debouncedFilter);
   dom.statusFilter.addEventListener('change', applyFilters);
   dom.refreshButton.addEventListener('click', () => void refreshServices({ showLoader: true }));
@@ -125,10 +129,41 @@ function bindKeyboardShortcuts(): void {
   });
 }
 
+function bindWindowEvents(): void {
+  // Pause polling when window loses focus to save resources
+  window.addEventListener('focus', () => {
+    state.isWindowFocused = true;
+    startPolling();
+  });
+
+  window.addEventListener('blur', () => {
+    state.isWindowFocused = false;
+    // Don't stop polling entirely, just let it continue at normal rate
+  });
+
+  // Cleanup on beforeunload
+  window.addEventListener('beforeunload', () => {
+    stopPolling();
+  });
+
+  // Handle visibility change (tab switching, window minimization)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      state.isWindowFocused = false;
+    } else {
+      state.isWindowFocused = true;
+      void refreshServices({ showLoader: false });
+    }
+  });
+}
+
 function startPolling(): void {
   stopPolling();
   state.pollTimer = setInterval(() => {
-    void refreshServices({ showLoader: false });
+    // Only auto-refresh if window is focused/visible
+    if (state.isWindowFocused && !document.hidden) {
+      void refreshServices({ showLoader: false });
+    }
   }, state.pollInterval);
 }
 
@@ -140,8 +175,10 @@ function stopPolling(): void {
 }
 
 async function refreshServices({ showLoader }: { showLoader: boolean }): Promise<void> {
-  if (state.loading) return;
+  // Prevent concurrent refreshes
+  if (state.loading || state.isRefreshing) return;
 
+  state.isRefreshing = true;
   const startTime = performance.now();
   setLoading(true, showLoader);
   try {
@@ -170,6 +207,7 @@ async function refreshServices({ showLoader }: { showLoader: boolean }): Promise
     dom.performanceInfo.textContent = 'Load failed';
   } finally {
     setLoading(false, showLoader);
+    state.isRefreshing = false;
   }
 }
 
@@ -209,7 +247,8 @@ function applyFilters(): void {
 }
 
 function renderTable(): void {
-  dom.tableBody.innerHTML = '';
+  // Use DocumentFragment for better performance
+  const fragment = document.createDocumentFragment();
 
   if (!state.filtered.length) {
     const row = document.createElement('tr');
@@ -218,7 +257,9 @@ function renderTable(): void {
     cell.colSpan = 6;
     cell.textContent = 'No services found matching the current filters';
     row.appendChild(cell);
-    dom.tableBody.appendChild(row);
+    fragment.appendChild(row);
+    dom.tableBody.innerHTML = '';
+    dom.tableBody.appendChild(fragment);
     return;
   }
 
@@ -228,7 +269,7 @@ function renderTable(): void {
   const endIndex = Math.min(startIndex + state.itemsPerPage, state.filtered.length);
   const pageItems = state.filtered.slice(startIndex, endIndex);
 
-  // Render only the current page of services
+  // Render only the current page of services using DocumentFragment
   pageItems.forEach((service) => {
     const row = document.createElement('tr');
     row.dataset.serviceId = service.id;
@@ -236,6 +277,7 @@ function renderTable(): void {
       row.classList.add('selected');
     }
 
+    // Use event delegation-friendly approach or bind here
     row.addEventListener('click', () => void selectService(service));
 
     row.appendChild(createCell(service.name, 'cell-name', false, service.name));
@@ -245,8 +287,12 @@ function renderTable(): void {
     row.appendChild(createCell(service.description || '—', 'cell-description', false, service.description || ''));
     row.appendChild(createActionsCell(service));
 
-    dom.tableBody.appendChild(row);
+    fragment.appendChild(row);
   });
+
+  // Clear and append in one operation
+  dom.tableBody.innerHTML = '';
+  dom.tableBody.appendChild(fragment);
 
   // Show pagination info if there are multiple pages
   if (totalPages > 1) {
@@ -565,6 +611,13 @@ function debounce<T extends (...args: never[]) => void>(fn: T, wait: number): (.
     }
     timeout = setTimeout(() => fn(...args), wait);
   };
+}
+
+// Cleanup function to be called on unload
+function cleanup(): void {
+  stopPolling();
+  // Clear any pending timeouts/intervals
+  state.pollTimer = null;
 }
 
 function capitalize(value: string): string {

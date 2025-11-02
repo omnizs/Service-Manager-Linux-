@@ -7,6 +7,7 @@ import type {
   ServiceInfo,
   ServiceListFilters,
 } from '../../types/service';
+import { isValidServiceId } from '../../utils/validation';
 
 type ExecError = NodeJS.ErrnoException & {
   stdout?: string | Buffer;
@@ -75,6 +76,11 @@ export async function listServices({ search, status }: ServiceListFilters = {}):
 }
 
 export async function controlService(serviceId: string, action: ServiceAction): Promise<ServiceControlResult> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   if (!SUPPORTED_ACTIONS.has(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
@@ -97,6 +103,11 @@ export async function controlService(serviceId: string, action: ServiceAction): 
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
+  // Validate service ID
+  if (!isValidServiceId(serviceId)) {
+    throw new Error(`Invalid service identifier: ${serviceId}`);
+  }
+
   const unit = normalizeServiceId(serviceId);
   const args = [
     'show',
@@ -136,14 +147,32 @@ function handleSystemctlError(error: unknown): void {
   const err = error as ExecError;
   if (!err.stderr) return;
   const text = err.stderr.toString();
+  
   if (text.includes('System has not been booted with systemd')) {
-    const friendly = new Error('Systemd is not available on this system.');
+    const friendly = new Error('Systemd is not available on this system. This application requires systemd to manage services on Linux.');
     (friendly as NodeJS.ErrnoException).code = 'NO_SYSTEMD';
+    throw friendly;
+  }
+  
+  if (text.includes('Failed to connect to bus') || text.includes('Failed to get D-Bus connection')) {
+    const friendly = new Error('Unable to connect to systemd. Please ensure systemd is running properly.');
+    (friendly as NodeJS.ErrnoException).code = 'DBUS_ERROR';
+    throw friendly;
+  }
+  
+  if (text.includes('Unit') && text.includes('not found')) {
+    const friendly = new Error('Service not found. It may have been removed or disabled.');
+    (friendly as NodeJS.ErrnoException).code = 'NOT_FOUND';
     throw friendly;
   }
 }
 
 function normalizeServiceId(value: string): string {
+  // Additional validation - service IDs should not contain path separators
+  if (value.includes('/') || value.includes('\\')) {
+    throw new Error('Invalid service identifier: contains path separators');
+  }
+
   if (!value.endsWith('.service')) {
     return `${value}.service`;
   }
