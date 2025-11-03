@@ -115,7 +115,8 @@ function getElement<T extends HTMLElement>(id: string): T {
 }
 
 function bindEvents(): void {
-  const debouncedFilter = debounce(applyFilters, 150); // Reduced from 180ms to 150ms for better responsiveness
+  // v2.1.0: Optimized debounce timing for better responsiveness
+  const debouncedFilter = debounce(applyFilters, 120); // Reduced to 120ms for snappier UI
   dom.searchInput.addEventListener('input', debouncedFilter);
   dom.statusFilter.addEventListener('change', applyFilters);
   dom.refreshButton.addEventListener('click', () => void refreshServices({ showLoader: true }));
@@ -176,17 +177,25 @@ function bindWindowEvents(): void {
 
 function startPolling(): void {
   stopPolling();
-  state.pollTimer = setInterval(() => {
-    // Only auto-refresh if window is focused/visible
+  // v2.1.0: Smart polling - longer intervals when window is not focused
+  const getPollingInterval = () => {
+    return state.isWindowFocused && !document.hidden ? state.pollInterval : state.pollInterval * 3;
+  };
+  
+  const poll = () => {
     if (state.isWindowFocused && !document.hidden) {
       void refreshServices({ showLoader: false });
     }
-  }, state.pollInterval);
+    // Dynamically adjust next poll interval
+    state.pollTimer = setTimeout(poll, getPollingInterval());
+  };
+  
+  state.pollTimer = setTimeout(poll, getPollingInterval());
 }
 
 function stopPolling(): void {
   if (state.pollTimer) {
-    clearInterval(state.pollTimer);
+    clearTimeout(state.pollTimer);
     state.pollTimer = null;
   }
 }
@@ -219,8 +228,8 @@ async function refreshServices({ showLoader }: { showLoader: boolean }): Promise
     applyFilters();
   } catch (error) {
     console.error('Failed to refresh services', error);
-    const message = error instanceof Error ? error.message : 'Unable to load services';
-    showToast(message, 'error');
+    const friendlyMessage = getUserFriendlyErrorMessage(error, 'load services');
+    showToast(friendlyMessage, 'error');
     dom.performanceInfo.textContent = 'Load failed';
   } finally {
     setLoading(false, showLoader);
@@ -693,13 +702,69 @@ async function handleAction(action: ServiceAction, service: ServiceInfo): Promis
       const message = response?.error?.message ?? 'Action failed';
       throw new Error(message);
     }
-    showToast(`${capitalize(action)} requested for ${service.name}`, 'success');
+    showToast(`✓ ${capitalize(action)} requested for ${service.name}`, 'success');
     await refreshServices({ showLoader: false });
   } catch (error) {
     console.error(`Failed to ${action} service`, error);
-    const message = error instanceof Error ? error.message : `Unable to ${action} service`;
-    showToast(message, 'error');
+    const friendlyMessage = getUserFriendlyErrorMessage(error, `${action} ${service.name}`);
+    showToast(friendlyMessage, 'error');
   }
+}
+
+/**
+ * Convert technical errors into user-friendly messages
+ * Enhanced in v2.1.0
+ */
+function getUserFriendlyErrorMessage(error: unknown, context: string): string {
+  if (!(error instanceof Error)) {
+    return `Unable to ${context}. Please try again.`;
+  }
+
+  const message = error.message.toLowerCase();
+  
+  // Permission errors
+  if (message.includes('permission') || message.includes('access denied') || message.includes('forbidden') || message.includes('eacces')) {
+    return `⚠️ Permission denied. You may need administrator privileges to ${context}.`;
+  }
+  
+  // Timeout errors
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return `⏱️ Operation timed out while trying to ${context}. The service may be unresponsive.`;
+  }
+  
+  // Not found errors
+  if (message.includes('not found') || message.includes('does not exist') || message.includes('enoent')) {
+    return `🔍 Service not found. It may have been removed or ${context} is unavailable.`;
+  }
+  
+  // Service-specific errors
+  if (message.includes('already running') || message.includes('already active')) {
+    return `ℹ️ Service is already running. No action needed.`;
+  }
+  
+  if (message.includes('already stopped') || message.includes('not running')) {
+    return `ℹ️ Service is already stopped. No action needed.`;
+  }
+  
+  if (message.includes('failed to start')) {
+    return `❌ Failed to start service. Check service configuration and logs for details.`;
+  }
+  
+  if (message.includes('connection') || message.includes('network')) {
+    return `🌐 Connection error while trying to ${context}. Check your network connection.`;
+  }
+  
+  // Rate limiting
+  if (message.includes('rate limit') || message.includes('too many requests')) {
+    return `⏸️ Too many requests. Please wait a moment before trying to ${context} again.`;
+  }
+  
+  // Generic fallback with original message if it's short enough
+  if (error.message.length < 100) {
+    return `❌ Failed to ${context}: ${error.message}`;
+  }
+  
+  return `❌ Failed to ${context}. Check the console for details.`;
 }
 
 function formatStartupType(value: string | undefined): string {
