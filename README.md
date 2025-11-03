@@ -90,7 +90,17 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.0.1 (Latest)
+### Version 2.0.2 (Latest)
+
+**Maintenance Release:**
+- Minor bug fixes and stability improvements
+- Performance optimizations for service list rendering
+- Updated dependencies to latest versions:
+  - @types/node to v24.10.0
+  - Electron to v39.0.0
+- General code quality improvements
+
+### Version 2.0.1
 
 **Quick Update:**
 - Fixed merge conflicts in documentation

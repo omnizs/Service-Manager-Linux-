@@ -1,6 +1,6 @@
 {
   "name": "@omnizs/service-manager",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS.",
   "main": "dist/main/main.js",
   "bin": {
@@ -49,9 +49,9 @@
     "README.md"
   ],
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^24.10.0",
     "copyfiles": "^2.4.1",
-    "electron": "^35.7.5",
+    "electron": "^39.0.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2"
   }
