@@ -1,6 +1,6 @@
 {
   "name": "@omnizs/service-manager",
-  "version": "2.1.0",
+  "version": "2.5.0",
   "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS.",
   "main": "dist/main/main.js",
   "bin": {
@@ -8,11 +8,13 @@
   },
   "scripts": {
     "clean": "rimraf dist",
-    "build": "npm run clean && npm run build:main && npm run build:renderer && npm run copy:assets",
+    "build": "npm run clean && npm run build:main && npm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json",
-    "build:renderer": "tsc -p tsconfig.renderer.json",
-    "copy:assets": "copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" dist",
+    "build:renderer": "vite build",
+    "dev": "npm run build:main && vite",
     "start": "npm run build && electron .",
+    "generate-icons": "node build/generate-icons.js",
+    "dist": "npm run build && npm run generate-icons && electron-builder",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -48,13 +50,69 @@
     "LICENSE",
     "README.md"
   ],
+  "build": {
+    "appId": "com.omnizs.servicemanager",
+    "productName": "Service Manager",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "extraResources": [
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "bin/**/*",
+      "resources/**/*"
+    ],
+    "mac": {
+      "icon": "resources/icon.png"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Service Manager",
+      "include": "build/installer.nsh"
+    }
+  },
   "dependencies": {
-    "electron": "^39.0.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "electron-updater": "^6.2.3"
   },
   "devDependencies": {
+    "electron": "^39.0.0",
+    "@tailwindcss/postcss": "^4.1.16",
+    "@tailwindcss/vite": "^4.1.16",
     "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "autoprefixer": "^10.4.20",
     "copyfiles": "^2.4.1",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.0",
+    "postcss": "^8.4.49",
     "rimraf": "^6.0.1",
-    "typescript": "^5.7.2"
+    "sharp": "^0.33.4",
+    "tailwindcss": "^4.1.16",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.12"
   }
 }

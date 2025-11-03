@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, session } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
+import fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -53,6 +55,7 @@ const servicesCache = new Map<string, CacheEntry>();
 const MAX_CACHE_SIZE = CONFIG.CACHE.MAX_SIZE;
 
 let mainWindow: BrowserWindow | null = null;
+let updateChecked = false;
 
 /**
  * Check if the application is running with elevated privileges
@@ -128,6 +131,11 @@ async function showPrivilegeWarning(): Promise<void> {
  * Create the main application window
  */
 function createMainWindow(): void {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.resolve(__dirname, '../../resources/icon.png');
+  const iconExists = fs.existsSync(iconPath);
+
   mainWindow = new BrowserWindow({
     width: CONFIG.WINDOW.DEFAULT_WIDTH,
     height: CONFIG.WINDOW.DEFAULT_HEIGHT,
@@ -136,6 +144,7 @@ function createMainWindow(): void {
     show: false,
     backgroundColor: CONFIG.WINDOW.BACKGROUND_COLOR,
     autoHideMenuBar: true,
+    icon: iconExists ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
@@ -153,12 +162,50 @@ function createMainWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
+
+    if (!updateChecked) {
+      updateChecked = true;
+      void checkForUpdates();
+    }
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
     // Clear cache on window close
     servicesCache.clear();
+  });
+}
+
+function checkForUpdates(): void {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+
+  autoUpdater.on('update-downloaded', () => {
+    if (!mainWindow) return;
+
+    void dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version of Service Manager has been downloaded. Restart now to install it?',
+      buttons: ['Restart', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(result => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  autoUpdater.on('error', (error) => {
+    console.error('[AUTO-UPDATE] Error checking for updates:', error);
+  });
+
+  void autoUpdater.checkForUpdates().catch(error => {
+    console.error('[AUTO-UPDATE] Failed to check for updates:', error);
   });
 }
 

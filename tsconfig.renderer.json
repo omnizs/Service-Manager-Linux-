@@ -2,15 +2,18 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "esnext",
-    "lib": ["ES2021", "DOM"],
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
     "outDir": "dist/renderer",
     "rootDir": "src/renderer",
-    "types": [],
+    "types": ["vite/client", "react", "react-dom"],
     "declaration": false,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true
   },
   "include": [
     "src/renderer/**/*.ts",
+    "src/renderer/**/*.tsx",
     "src/types/**/*.d.ts"
   ]
 }

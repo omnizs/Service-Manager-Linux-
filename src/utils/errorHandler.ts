@@ -222,3 +222,59 @@ export class CircuitBreaker {
   }
 }
 
+/**
+ * Convert technical errors into user-friendly messages
+ * Enhanced in v2.1.0
+ */
+export function getUserFriendlyErrorMessage(error: unknown, context: string): string {
+  if (!(error instanceof Error)) {
+    return `Unable to ${context}. Please try again.`;
+  }
+
+  const message = error.message.toLowerCase();
+  
+  // Permission errors
+  if (message.includes('permission') || message.includes('access denied') || message.includes('forbidden') || message.includes('eacces')) {
+    return `⚠️ Permission denied. You may need administrator privileges to ${context}.`;
+  }
+  
+  // Timeout errors
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return `⏱️ Operation timed out while trying to ${context}. The service may be unresponsive.`;
+  }
+  
+  // Not found errors
+  if (message.includes('not found') || message.includes('does not exist') || message.includes('enoent')) {
+    return `🔍 Service not found. It may have been removed or ${context} is unavailable.`;
+  }
+  
+  // Service-specific errors
+  if (message.includes('already running') || message.includes('already active')) {
+    return `ℹ️ Service is already running. No action needed.`;
+  }
+  
+  if (message.includes('already stopped') || message.includes('not running')) {
+    return `ℹ️ Service is already stopped. No action needed.`;
+  }
+  
+  if (message.includes('failed to start')) {
+    return `❌ Failed to start service. Check service configuration and logs for details.`;
+  }
+  
+  if (message.includes('connection') || message.includes('network')) {
+    return `🌐 Connection error while trying to ${context}. Check your network connection.`;
+  }
+  
+  // Rate limiting
+  if (message.includes('rate limit') || message.includes('too many requests')) {
+    return `⏸️ Too many requests. Please wait a moment before trying to ${context} again.`;
+  }
+  
+  // Generic fallback with original message if it's short enough
+  if (error.message.length < 100) {
+    return `❌ Failed to ${context}: ${error.message}`;
+  }
+  
+  return `❌ Failed to ${context}. Check the console for details.`;
+}
+
