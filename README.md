@@ -90,7 +90,13 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.0.3 (Latest)
+### Version 2.0.4 (Latest)
+
+**Critical Fix:**
+- Fixed "Cannot find module 'electron'" error when running globally installed package
+- Moved Electron from devDependencies to dependencies for proper npm global installation
+
+### Version 2.0.3
 
 **Maintenance Release:**
 - Minor bug fixes and stability improvements
