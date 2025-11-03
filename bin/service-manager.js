@@ -110,14 +110,13 @@ if (process.platform === 'win32' && !skipElevation) {
   });
 } else if (process.platform !== 'win32' && hasElevateFlag) {
   // Unix-like: Elevate with sudo if --elevate flag provided
-  const shouldElevate = process.getuid && process.getuid() !== 0;
+  const shouldElevate = typeof process.getuid === 'function' && process.getuid() !== 0;
   
   if (shouldElevate) {
     console.log('Attempting to run with elevated privileges...');
     const args = [process.execPath, ...process.argv.slice(1).filter(arg => arg !== '--elevate')];
     const child = spawn('sudo', args, {
       stdio: 'inherit',
-      windowsHide: false,
     });
     
     child.on('close', (code) => {

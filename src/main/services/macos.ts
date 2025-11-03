@@ -41,26 +41,31 @@ export async function listServices({ search, status }: ServiceListFilters = {}):
 
   const baseServices = parseLaunchctlList(stdout);
 
-  const servicesWithMetadata = await mapWithConcurrency(baseServices, 6, async (service) => {
-    const meta = await readServiceMetadata(service.id);
-    if (!meta) return service;
+  const servicesWithMetadata = await mapWithConcurrency(
+    baseServices, 
+    6, 
+    async (service) => {
+      const meta = await readServiceMetadata(service.id);
+      if (!meta) return service;
 
-    const isDisabled = typeof meta.disabled === 'boolean' ? meta.disabled : false;
-    const isEnabled = typeof meta.disabled === 'boolean' ? !meta.disabled : false;
+      const isDisabled = typeof meta.disabled === 'boolean' ? meta.disabled : false;
+      const isEnabled = typeof meta.disabled === 'boolean' ? !meta.disabled : false;
 
-    return {
-      ...service,
-      startupType: typeof meta.disabled === 'boolean' ? (meta.disabled ? 'disabled' : 'enabled') : service.startupType,
-      executable: meta.program || service.executable,
-      description: meta.comment || service.description,
-      domain: meta.domain,
-      raw: meta.raw,
-      status: (meta.status || service.status) as ServiceInfo['status'],
-      statusLabel: meta.statusLabel || service.statusLabel,
-      canEnable: isDisabled,
-      canDisable: isEnabled,
-    } satisfies LaunchdService;
-  });
+      return {
+        ...service,
+        startupType: typeof meta.disabled === 'boolean' ? (meta.disabled ? 'disabled' : 'enabled') : service.startupType,
+        executable: meta.program || service.executable,
+        description: meta.comment || service.description,
+        domain: meta.domain,
+        raw: meta.raw,
+        status: (meta.status || service.status) as ServiceInfo['status'],
+        statusLabel: meta.statusLabel || service.statusLabel,
+        canEnable: isDisabled,
+        canDisable: isEnabled,
+      } satisfies LaunchdService;
+    },
+    (service) => service // Fallback: return original service if metadata fetch fails
+  );
 
   let filtered = servicesWithMetadata;
 
@@ -308,7 +313,8 @@ function buildDomainCandidates(serviceId: string): string[] {
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
-  mapper: (item: T, index: number) => Promise<R>
+  mapper: (item: T, index: number) => Promise<R>,
+  fallback?: (item: T, error: unknown) => R
 ): Promise<R[]> {
   if (!Array.isArray(items) || items.length === 0) {
     return [];
@@ -324,7 +330,14 @@ async function mapWithConcurrency<T, R>(
       try {
         results[currentIndex] = await mapper(items[currentIndex], currentIndex);
       } catch (error) {
-        results[currentIndex] = items[currentIndex] as unknown as R;
+        // If a fallback is provided, use it; otherwise rethrow
+        if (fallback) {
+          console.warn(`Error processing item at index ${currentIndex}, using fallback:`, error);
+          results[currentIndex] = fallback(items[currentIndex], error);
+        } else {
+          console.error(`Error processing item at index ${currentIndex}:`, error);
+          throw error;
+        }
       }
     }
   }

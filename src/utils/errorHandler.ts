@@ -131,9 +131,11 @@ export function sanitizeError(error: unknown): SerializedError {
     const category = categorizeError(error);
     
     // Remove sensitive file paths from error messages
+    // Windows paths: C:\..., D:\..., etc.
     let message = error.message
-      .replace(/[A-Z]:\\[\w\s\\.-]+/gi, '[PATH]')
-      .replace(/\/[\w\s\/.-]+/g, '[PATH]');
+      .replace(/[A-Z]:\\(?:[^\s"'<>|]+\\?)+/gi, '[PATH]')
+      // Unix absolute paths starting with / but not matching single forward slashes
+      .replace(/\/(?:[a-zA-Z0-9_.-]+\/)+[a-zA-Z0-9_.-]*/g, '[PATH]');
 
     // Add user-friendly messages based on category
     switch (category) {

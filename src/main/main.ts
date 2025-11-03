@@ -44,6 +44,44 @@ interface CacheEntry {
   timestamp: number;
 }
 
+/**
+ * Ordered cache implementation with LRU eviction
+ */
+class OrderedCache<K, V> {
+  private cache = new Map<K, V>();
+  
+  constructor(private maxSize: number) {}
+  
+  get(key: K): V | undefined {
+    return this.cache.get(key);
+  }
+  
+  set(key: K, value: V): void {
+    // If key exists, delete it first to update insertion order
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    
+    // If at max size, remove oldest entry (first in Map)
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    
+    this.cache.set(key, value);
+  }
+  
+  clear(): void {
+    this.cache.clear();
+  }
+  
+  get size(): number {
+    return this.cache.size;
+  }
+}
+
 // Rate limiter for service control operations
 const controlRateLimiter = new RateLimiter(CONFIG.RATE_LIMIT.CONTROL_COOLDOWN_MS);
 
@@ -51,8 +89,7 @@ const controlRateLimiter = new RateLimiter(CONFIG.RATE_LIMIT.CONTROL_COOLDOWN_MS
 const serviceCircuitBreaker = new CircuitBreaker(5, 60000);
 
 // Cache for service list with size limit
-const servicesCache = new Map<string, CacheEntry>();
-const MAX_CACHE_SIZE = CONFIG.CACHE.MAX_SIZE;
+const servicesCache = new OrderedCache<string, CacheEntry>(CONFIG.CACHE.MAX_SIZE);
 
 let mainWindow: BrowserWindow | null = null;
 let updateChecked = false;
@@ -250,19 +287,6 @@ function getCacheKey(filters: ServiceListFilters): string {
 }
 
 /**
- * Manage cache size
- */
-function manageCacheSize(): void {
-  if (servicesCache.size > MAX_CACHE_SIZE) {
-    // Remove oldest entry
-    const firstKey = servicesCache.keys().next().value;
-    if (firstKey) {
-      servicesCache.delete(firstKey);
-    }
-  }
-}
-
-/**
  * IPC Handler: List services
  */
 ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>> => {
@@ -303,11 +327,10 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
       )
     );
 
-    // Cache result
+    // Cache result (OrderedCache handles size management automatically)
     if (CONFIG.CACHE.ENABLED) {
       const cacheKey = getCacheKey(filters);
       servicesCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      manageCacheSize();
     }
 
     return { ok: true, data: result };
