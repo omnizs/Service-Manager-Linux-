@@ -8,6 +8,7 @@ interface FooterProps {
   loadTime: number | null;
   autoUpdateEnabled: boolean;
   updateInterval: number;
+  appVersion?: string;
 }
 
 const Footer: React.FC<FooterProps> = memo(({ 
@@ -17,7 +18,8 @@ const Footer: React.FC<FooterProps> = memo(({
   platform, 
   loadTime,
   autoUpdateEnabled,
-  updateInterval
+  updateInterval,
+  appVersion
 }) => {
   return (
     <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-3">
@@ -37,6 +39,12 @@ const Footer: React.FC<FooterProps> = memo(({
           </span>
           <span className="text-gray-400 dark:text-gray-600">•</span>
           <span>{platform}</span>
+          {appVersion && (
+            <>
+              <span className="text-gray-400 dark:text-gray-600">•</span>
+              <span className="text-gray-500 dark:text-gray-500">v{appVersion}</span>
+            </>
+          )}
           {autoUpdateEnabled && (
             <>
               <span className="text-gray-400 dark:text-gray-600">•</span>

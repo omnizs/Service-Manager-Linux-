@@ -35,17 +35,23 @@ jobs:
       - name: Generate Icons
         run: npm run generate-icons
       
-      - name: Build Release (Linux)
+      - name: Build and Publish Release (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: npx electron-builder --linux AppImage deb --publish never
+        run: npx electron-builder --linux AppImage deb --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Build Release (macOS)
+      - name: Build and Publish Release (macOS)
         if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac dmg zip --publish never
+        run: npx electron-builder --mac dmg zip --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Build Release (Windows)
+      - name: Build and Publish Release (Windows)
         if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win nsis portable --publish never
+        run: npx electron-builder --win nsis portable --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Upload Release Assets (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -54,6 +60,7 @@ jobs:
           files: |
             release/*.AppImage
             release/*.deb
+            release/*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
@@ -65,6 +72,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.blockmap
+            release/*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
@@ -75,7 +83,7 @@ jobs:
           files: |
             release/*.exe
             release/*.exe.blockmap
-            release/latest.yml
+            release/*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

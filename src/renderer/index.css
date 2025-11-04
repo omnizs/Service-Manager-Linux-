@@ -1,6 +1,9 @@
 /* Tailwind CSS 4 - Modern Import */
 @import "tailwindcss";
 
+/* Tailwind CSS 4 - Dark Mode Variant Configuration */
+@variant dark (&:is(.dark *));
+
 /* Tailwind CSS 4 - Theme Configuration with CSS Variables */
 @theme {
   /* Enhanced Color Palette with Modern Gradients */

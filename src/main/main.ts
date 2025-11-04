@@ -507,6 +507,13 @@ ipcMain.handle('app:applyPendingUpdate', async (): Promise<IpcResponse<boolean>>
 });
 
 /**
+ * IPC Handler: Get app version
+ */
+ipcMain.handle('app:getVersion', async (): Promise<string> => {
+  return app.getVersion();
+});
+
+/**
  * Legacy error serialization - now handled by sanitizeError from errorHandler
  * Keeping this wrapper for backwards compatibility if needed
  */

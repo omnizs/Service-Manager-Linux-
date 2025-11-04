@@ -84,6 +84,7 @@ export interface ServiceAPI {
   checkForUpdates(): Promise<IpcResponse<UpdateInfo>>;
   manualUpdateCheck(): Promise<IpcResponse<void>>;
   applyPendingUpdate(): Promise<IpcResponse<boolean>>;
+  getAppVersion(): Promise<string>;
   onUpdateAvailable(handler: (updateInfo: UpdateInfo) => void): () => void;
   onUpdateProgress(handler: (progress: UpdateProgress) => void): () => void;
   onUpdateDownloaded(handler: (payload: { version: string; releaseNotes?: string }) => void): () => void;

@@ -36,6 +36,8 @@ const api: ServiceAPI = {
     ipcRenderer.invoke('app:manualUpdateCheck') as Promise<IpcResponse<void>>,
   applyPendingUpdate: () =>
     ipcRenderer.invoke('app:applyPendingUpdate') as Promise<IpcResponse<boolean>>,
+  getAppVersion: () =>
+    ipcRenderer.invoke('app:getVersion') as Promise<string>,
   onUpdateAvailable: (handler: (updateInfo: UpdateInfo) => void) => {
     const npmListener = (_event: IpcRendererEvent, updateInfo: UpdateInfo) => handler(updateInfo);
     const regularListener = (_event: IpcRendererEvent, data: { version: string; currentVersion: string; releaseNotes?: string }) => {

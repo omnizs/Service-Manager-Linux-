@@ -7,10 +7,22 @@ import { app, dialog, BrowserWindow, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import log from 'electron-log';
 
 const execAsync = promisify(exec);
 
 let pendingUpdateVersion: string | null = null;
+let updateCheckInterval: NodeJS.Timeout | null = null;
+
+// Configure logging
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
+
+// Configure autoUpdater
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.allowPrerelease = false;
+autoUpdater.allowDowngrade = false;
 
 export interface UpdateInfo {
   available: boolean;
@@ -131,16 +143,28 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   const installMethod = detectInstallMethod();
   
   if (installMethod !== 'packaged') {
+    log.info('[UPDATE] Auto-updater disabled (not a packaged app)');
     console.log('[UPDATE] Auto-updater disabled (not a packaged app)');
     return;
   }
   
-  // Configure electron-updater
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  log.info('[UPDATE] Initializing auto-updater for packaged app');
+  
+  // Not available
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('[UPDATE] No update available. Current version:', app.getVersion());
+    console.log('[UPDATE] No update available. Current version:', app.getVersion());
+  });
+  
+  // Checking for updates
+  autoUpdater.on('checking-for-update', () => {
+    log.info('[UPDATE] Checking for updates...');
+    console.log('[UPDATE] Checking for updates...');
+  });
   
   // Update available
   autoUpdater.on('update-available', (info) => {
+    log.info('[UPDATE] Update available:', info.version);
     console.log('[UPDATE] Update available:', info.version);
     mainWindow.webContents.send('update:available', {
       version: info.version,
@@ -151,6 +175,10 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   
   // Download progress
   autoUpdater.on('download-progress', (progress) => {
+    const percentRounded = Math.round(progress.percent);
+    if (percentRounded % 10 === 0) { // Log every 10%
+      log.info(`[UPDATE] Download progress: ${percentRounded}%`);
+    }
     mainWindow.webContents.send('update:progress', {
       percent: progress.percent,
       transferred: progress.transferred,
@@ -160,6 +188,7 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   
   // Update downloaded
   autoUpdater.on('update-downloaded', (info) => {
+    log.info('[UPDATE] Update downloaded:', info.version);
     console.log('[UPDATE] Update downloaded:', info.version);
     pendingUpdateVersion = info.version;
     mainWindow.webContents.send('update:downloaded', {
@@ -184,6 +213,7 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   
   // Error handling
   autoUpdater.on('error', (error) => {
+    log.error('[UPDATE] Auto-updater error:', error);
     console.error('[UPDATE] Auto-updater error:', error);
     mainWindow.webContents.send('update:error', {
       message: error.message,
@@ -197,9 +227,30 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   });
 
   // Check for updates on startup
+  log.info('[UPDATE] Checking for updates on startup...');
   console.log('[UPDATE] Checking for updates on startup...');
   void autoUpdater.checkForUpdatesAndNotify().catch(error => {
+    log.error('[UPDATE] Failed to check for updates:', error);
     console.error('[UPDATE] Failed to check for updates:', error);
+  });
+  
+  // Schedule periodic update checks (every 4 hours)
+  const CHECK_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+  updateCheckInterval = setInterval(() => {
+    log.info('[UPDATE] Running scheduled update check...');
+    console.log('[UPDATE] Running scheduled update check...');
+    void autoUpdater.checkForUpdatesAndNotify().catch(error => {
+      log.error('[UPDATE] Scheduled update check failed:', error);
+      console.error('[UPDATE] Scheduled update check failed:', error);
+    });
+  }, CHECK_INTERVAL);
+  
+  // Clean up interval on app quit
+  app.on('before-quit', () => {
+    if (updateCheckInterval) {
+      clearInterval(updateCheckInterval);
+      updateCheckInterval = null;
+    }
   });
 }
 

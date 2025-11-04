@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
   
   const { toasts, addToast, removeToast } = useToast();
   const { settings, updateSettings } = useSettings();
@@ -164,9 +165,18 @@ const App: React.FC = () => {
     }
   }, [addToast, refreshServices]);
 
-  // Initial load
+  // Initial load and fetch version
   useEffect(() => {
     refreshServices(true);
+    
+    // Fetch app version
+    if (window.serviceAPI) {
+      window.serviceAPI.getAppVersion().then(version => {
+        setAppVersion(version);
+      }).catch(error => {
+        console.error('Failed to get app version:', error);
+      });
+    }
   }, []);
 
   // Auto-update based on settings
@@ -293,6 +303,7 @@ const App: React.FC = () => {
         loadTime={loadTime}
         autoUpdateEnabled={settings.autoUpdate}
         updateInterval={settings.updateInterval}
+        appVersion={appVersion}
       />
 
       <Settings
