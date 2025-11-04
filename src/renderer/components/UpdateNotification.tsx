@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { UpdateInfo, UpdateProgress } from '../../types/service';
+import type { UpdateInfo, UpdateProgress, ServiceAPI } from '../../types/service';
 
 type NotificationPhase = 'available' | 'downloading' | 'ready';
 
@@ -11,8 +11,14 @@ export const UpdateNotification: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [downloadedVersion, setDownloadedVersion] = useState<string | null>(null);
 
+  const api = (window as unknown as { serviceAPI?: ServiceAPI }).serviceAPI;
+
   useEffect(() => {
-    const offAvailable = window.serviceAPI.onUpdateAvailable((info) => {
+    if (!api) {
+      return;
+    }
+
+    const offAvailable = api.onUpdateAvailable((info) => {
       setUpdateInfo(info);
       setPhase(info.installMethod === 'packaged' ? 'downloading' : 'available');
       setProgress(null);
@@ -20,13 +26,13 @@ export const UpdateNotification: React.FC = () => {
       setVisible(true);
     });
 
-    const offProgress = window.serviceAPI.onUpdateProgress((prog) => {
+    const offProgress = api.onUpdateProgress((prog) => {
       setProgress(prog);
       setPhase('downloading');
       setVisible(true);
     });
 
-    const offDownloaded = window.serviceAPI.onUpdateDownloaded(({ version }) => {
+    const offDownloaded = api.onUpdateDownloaded(({ version }) => {
       setPhase('ready');
       setDownloadedVersion(version);
       setProgress(null);
@@ -38,7 +44,7 @@ export const UpdateNotification: React.FC = () => {
       offProgress();
       offDownloaded();
     };
-  }, []);
+  }, [api]);
 
   const handleCopyCommand = () => {
     if (updateInfo?.updateCommand) {
@@ -54,7 +60,7 @@ export const UpdateNotification: React.FC = () => {
   };
 
   const handleRestartNow = async () => {
-    await window.serviceAPI.applyPendingUpdate();
+    await api?.applyPendingUpdate();
   };
 
   const title = useMemo(() => {
@@ -71,7 +77,7 @@ export const UpdateNotification: React.FC = () => {
     return 'Update available';
   }, [updateInfo, phase]);
 
-  if (!visible || !updateInfo) {
+  if (!visible || !updateInfo || !api) {
     return null;
   }
 
