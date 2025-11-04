@@ -62,9 +62,9 @@ export default defineConfig({
     // Vite 7 warmup feature for faster initial load
     warmup: {
       clientFiles: [
-        './src/renderer/App.tsx',
-        './src/renderer/components/**/*.tsx',
-        './src/renderer/hooks/**/*.ts',
+        './App.tsx',
+        './components/**/*.tsx',
+        './hooks/**/*.ts',
       ],
     },
   },
