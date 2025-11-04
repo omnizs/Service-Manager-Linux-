@@ -77,7 +77,7 @@ service-manager --elevate
 
 ## Security
 
-Service Manager v1.5.0 includes comprehensive security enhancements:
+Service Manager includes comprehensive security enhancements:
 
 - **Context Isolation**: The renderer operates with context isolation enabled; all privileged calls flow through controlled IPC handlers in the main process
 - **Input Validation**: All service IDs, file paths, and user inputs are validated to prevent command injection attacks
@@ -90,7 +90,34 @@ Service Manager v1.5.0 includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.0.4 (Latest)
+### Version 2.5.2 (Latest)
+
+**Node.js Version Requirements Update:**
+- Updated Node.js engine requirement from `>=18.0.0` to `>=20.19.0` to align with Vite 7.x requirements
+- Fixed GitHub Actions CI workflow to only test against compatible Node.js versions (20.x, 22.x, 24.x)
+- Removed non-existent `npm run webpack` step from CI workflow
+
+**Note:** This version requires Node.js 20.19+ or 22.12+ due to Vite 7.x dependencies.
+
+### Version 2.5.1
+
+**Bug Fixes:**
+- **bin/service-manager.js**: Removed invalid `windowsHide` property from Unix process spawn options which was causing potential issues on Linux/macOS
+- **bin/service-manager.js**: Improved `process.getuid` check to use `typeof` for better type safety
+- **src/utils/errorHandler.ts**: Fixed overly aggressive path sanitization regex that was incorrectly replacing legitimate text in error messages
+- **src/main/services/macos.ts**: Replaced unsafe type casting in `mapWithConcurrency` error handler with a proper fallback mechanism
+- **src/main/main.ts**: Implemented proper LRU cache eviction with `OrderedCache` class to ensure oldest entries are removed based on insertion order
+
+**Changed:**
+- **src/main/services/macos.ts**: Enhanced `mapWithConcurrency` function to accept optional fallback handler for more robust error handling
+
+### Version 2.5.0
+
+**Major Release:**
+- Incremental improvements and bug fixes
+- Enhanced error handling and performance optimizations
+
+### Version 2.0.4
 
 **Critical Fix:**
 - Fixed "Cannot find module 'electron'" error when running globally installed package
