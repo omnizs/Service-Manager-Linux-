@@ -6,6 +6,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Settings from './components/Settings';
 import Toast, { useToast } from './components/Toast';
+import { UpdateNotification } from './components/UpdateNotification';
 import { useSettings } from './hooks/useSettings';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
 
@@ -285,6 +286,7 @@ const App: React.FC = () => {
       />
 
       <Toast toasts={toasts} onRemove={removeToast} />
+      <UpdateNotification />
     </div>
   );
 };

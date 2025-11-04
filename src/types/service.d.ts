@@ -59,6 +59,21 @@ export interface IpcResponse<T> {
   error?: SerializedError;
 }
 
+export interface UpdateInfo {
+  available: boolean;
+  currentVersion: string;
+  latestVersion?: string;
+  installMethod: 'npm' | 'packaged' | 'source';
+  updateCommand?: string;
+  releaseNotes?: string;
+}
+
+export interface UpdateProgress {
+  percent: number;
+  transferred: number;
+  total: number;
+}
+
 export interface ServiceAPI {
   listServices(filters?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>>;
   controlService(serviceId: string, action: ServiceAction): Promise<IpcResponse<ServiceControlResult>>;
@@ -66,6 +81,11 @@ export interface ServiceAPI {
   openPath(targetPath: string): void;
   showError(message: string): Promise<void>;
   onServiceEvent(handler: (payload: unknown) => void): () => void;
+  checkForUpdates(): Promise<IpcResponse<UpdateInfo>>;
+  manualUpdateCheck(): Promise<IpcResponse<void>>;
+  onUpdateAvailable(handler: (updateInfo: UpdateInfo) => void): () => void;
+  onUpdateProgress(handler: (progress: UpdateProgress) => void): () => void;
+  onUpdateError(handler: (error: { message: string }) => void): () => void;
 }
 
 declare global {

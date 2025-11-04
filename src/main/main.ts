@@ -28,6 +28,7 @@ import {
   CircuitBreaker,
 } from '../utils/errorHandler';
 import { CONFIG } from './config';
+import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, type UpdateInfo } from './updater';
 
 const execAsync = promisify(exec);
 
@@ -200,9 +201,15 @@ function createMainWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
 
-    if (!updateChecked) {
+    if (!updateChecked && mainWindow) {
       updateChecked = true;
-      void checkForUpdates();
+      // Initialize auto-updater for packaged apps
+      initializeAutoUpdater(mainWindow);
+      
+      // Check for npm updates after a short delay
+      setTimeout(() => {
+        void checkAndNotifyUpdates(mainWindow);
+      }, 3000);
     }
   });
 
@@ -213,37 +220,22 @@ function createMainWindow(): void {
   });
 }
 
-function checkForUpdates(): void {
-  if (!app.isPackaged) {
-    return;
+/**
+ * Check for updates and notify user if available
+ */
+async function checkAndNotifyUpdates(window: BrowserWindow | null): Promise<void> {
+  if (!window) return;
+  
+  try {
+    const updateInfo = await checkForUpdates();
+    
+    if (updateInfo.available && updateInfo.installMethod === 'npm') {
+      // For npm installs, send notification to renderer
+      window.webContents.send('update:available-npm', updateInfo);
+    }
+  } catch (error) {
+    console.error('[UPDATE] Failed to check for updates:', error);
   }
-
-  autoUpdater.autoDownload = true;
-
-  autoUpdater.on('update-downloaded', () => {
-    if (!mainWindow) return;
-
-    void dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: 'A new version of Service Manager has been downloaded. Restart now to install it?',
-      buttons: ['Restart', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(result => {
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
-      }
-    });
-  });
-
-  autoUpdater.on('error', (error) => {
-    console.error('[AUTO-UPDATE] Error checking for updates:', error);
-  });
-
-  void autoUpdater.checkForUpdates().catch(error => {
-    console.error('[AUTO-UPDATE] Failed to check for updates:', error);
-  });
 }
 
 app.whenReady().then(() => {
@@ -473,6 +465,35 @@ ipcMain.handle('app:showErrorDialog', async (_event, message?: unknown) => {
     detail: typeof message === 'string' ? message : 'An unexpected error occurred.',
     buttons: ['OK'],
   });
+});
+
+/**
+ * IPC Handler: Check for updates
+ */
+ipcMain.handle('app:checkForUpdates', async (): Promise<IpcResponse<UpdateInfo>> => {
+  try {
+    const updateInfo = await checkForUpdates();
+    return { ok: true, data: updateInfo };
+  } catch (error) {
+    console.error('[ERROR] app:checkForUpdates failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Perform manual update check with UI
+ */
+ipcMain.handle('app:manualUpdateCheck', async (): Promise<IpcResponse<void>> => {
+  try {
+    if (!mainWindow) {
+      throw new Error('Main window not available');
+    }
+    await performManualUpdateCheck(mainWindow);
+    return { ok: true };
+  } catch (error) {
+    console.error('[ERROR] app:manualUpdateCheck failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
 });
 
 /**

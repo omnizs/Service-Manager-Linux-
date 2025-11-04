@@ -7,6 +7,8 @@ import type {
   ServiceInfo,
   ServiceListFilters,
   ServiceAPI,
+  UpdateInfo,
+  UpdateProgress,
 } from './types/service';
 
 const api: ServiceAPI = {
@@ -27,6 +29,38 @@ const api: ServiceAPI = {
     const listener = (_event: IpcRendererEvent, payload: unknown) => handler(payload);
     ipcRenderer.on('services:event', listener);
     return () => ipcRenderer.removeListener('services:event', listener);
+  },
+  checkForUpdates: () =>
+    ipcRenderer.invoke('app:checkForUpdates') as Promise<IpcResponse<UpdateInfo>>,
+  manualUpdateCheck: () =>
+    ipcRenderer.invoke('app:manualUpdateCheck') as Promise<IpcResponse<void>>,
+  onUpdateAvailable: (handler: (updateInfo: UpdateInfo) => void) => {
+    const npmListener = (_event: IpcRendererEvent, updateInfo: UpdateInfo) => handler(updateInfo);
+    const regularListener = (_event: IpcRendererEvent, data: { version: string; releaseNotes?: string }) => {
+      handler({
+        available: true,
+        currentVersion: '',
+        latestVersion: data.version,
+        installMethod: 'packaged',
+        releaseNotes: data.releaseNotes,
+      });
+    };
+    ipcRenderer.on('update:available-npm', npmListener);
+    ipcRenderer.on('update:available', regularListener);
+    return () => {
+      ipcRenderer.removeListener('update:available-npm', npmListener);
+      ipcRenderer.removeListener('update:available', regularListener);
+    };
+  },
+  onUpdateProgress: (handler: (progress: UpdateProgress) => void) => {
+    const listener = (_event: IpcRendererEvent, progress: UpdateProgress) => handler(progress);
+    ipcRenderer.on('update:progress', listener);
+    return () => ipcRenderer.removeListener('update:progress', listener);
+  },
+  onUpdateError: (handler: (error: { message: string }) => void) => {
+    const listener = (_event: IpcRendererEvent, error: { message: string }) => handler(error);
+    ipcRenderer.on('update:error', listener);
+    return () => ipcRenderer.removeListener('update:error', listener);
   },
 };
 
