@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import type { Settings as SettingsType } from '../hooks/useSettings';
 
 interface SettingsProps {
@@ -24,12 +24,26 @@ const Settings: React.FC<SettingsProps> = memo(({ isOpen, onClose, settings, onU
   }, [isOpen, onClose]);
   if (!isOpen) return null;
 
+  const versionLabel = useMemo(() => {
+    try {
+      return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.6.1';
+    } catch {
+      return '2.6.1';
+    }
+  }, []);
+
   const handleAutoUpdateToggle = () => {
     onUpdateSettings({ autoUpdate: !settings.autoUpdate });
   };
 
   const handleIntervalChange = (interval: number) => {
     onUpdateSettings({ updateInterval: interval });
+  };
+
+  const handleThemeChange = (theme: 'light' | 'dark') => {
+    if (theme !== settings.theme) {
+      onUpdateSettings({ theme });
+    }
   };
 
   return (
@@ -63,16 +77,48 @@ const Settings: React.FC<SettingsProps> = memo(({ isOpen, onClose, settings, onU
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider mb-3">
               Appearance
             </h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-4 border border-blue-500/40 dark:border-blue-500/30 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4M12 22a10 10 0 100-20 10 10 0 000 20z" />
-                </svg>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => handleThemeChange('light')}
+                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                  settings.theme === 'light'
+                    ? 'border-blue-500 bg-blue-50 text-blue-800 dark:border-blue-400/70 dark:bg-blue-500/10 dark:text-blue-100'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-400/50 hover:bg-gray-50 dark:hover:bg-gray-800/60'
+                }`}
+              >
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Dark theme is active</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Light mode is temporarily disabled while we refine the visuals. We'll bring it back soon.</p>
+                  <p className="text-sm font-semibold">Light theme</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Bright interface suited for well-lit environments.</p>
                 </div>
-              </div>
+                <span
+                  className={`h-3 w-3 rounded-full border-2 transition-colors ${
+                    settings.theme === 'light'
+                      ? 'border-blue-500 bg-blue-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                />
+              </button>
+
+              <button
+                onClick={() => handleThemeChange('dark')}
+                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                  settings.theme === 'dark'
+                    ? 'border-blue-500 bg-blue-900/20 text-blue-100'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-400/50 hover:bg-gray-50 dark:hover:bg-gray-800/60'
+                }`}
+              >
+                <div>
+                  <p className="text-sm font-semibold">Dark theme</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Low-light optimized colors with improved contrast.</p>
+                </div>
+                <span
+                  className={`h-3 w-3 rounded-full border-2 transition-colors ${
+                    settings.theme === 'dark'
+                      ? 'border-blue-400 bg-blue-400'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 
@@ -131,7 +177,7 @@ const Settings: React.FC<SettingsProps> = memo(({ isOpen, onClose, settings, onU
           {/* Info */}
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-              <p><strong>Version:</strong> 2.5.0</p>
+              <p><strong>Version:</strong> {versionLabel}</p>
               <p><strong>Framework:</strong> React 19 + Tailwind CSS 4</p>
               <p><strong>Build Tool:</strong> Vite 7</p>
               <p><strong>License:</strong> MIT</p>

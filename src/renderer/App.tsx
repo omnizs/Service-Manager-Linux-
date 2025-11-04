@@ -244,6 +244,8 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
       <Header 
         loading={loading}
+        theme={settings.theme}
+        onToggleTheme={() => updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
         onRefresh={() => refreshServices(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />

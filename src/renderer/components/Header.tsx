@@ -2,11 +2,13 @@ import React, { memo } from 'react';
 
 interface HeaderProps {
   loading: boolean;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
 }
 
-const Header: React.FC<HeaderProps> = memo(({ loading, onRefresh, onOpenSettings }) => {
+const Header: React.FC<HeaderProps> = memo(({ loading, theme, onToggleTheme, onRefresh, onOpenSettings }) => {
   return (
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
       <div className="flex items-center justify-between px-6 py-4">
@@ -21,6 +23,31 @@ const Header: React.FC<HeaderProps> = memo(({ loading, onRefresh, onOpenSettings
         </div>
         
         <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleTheme}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer"
+            aria-label="Toggle theme"
+            title="Toggle light/dark theme"
+          >
+            {theme === 'dark' ? (
+              <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <circle cx="12" cy="12" r="5" />
+                <path d="M12 1v2" />
+                <path d="M12 21v2" />
+                <path d="M4.22 4.22l1.42 1.42" />
+                <path d="M18.36 18.36l1.42 1.42" />
+                <path d="M1 12h2" />
+                <path d="M21 12h2" />
+                <path d="M4.22 19.78l1.42-1.42" />
+                <path d="M18.36 5.64l1.42-1.42" />
+              </svg>
+            )}
+          </button>
+
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <span className={`w-2 h-2 rounded-full ${loading ? 'bg-blue-500 dark:bg-blue-400 animate-pulse' : 'bg-gray-400 dark:bg-gray-600'}`}></span>
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{loading ? 'Refreshing…' : 'Idle'}</span>

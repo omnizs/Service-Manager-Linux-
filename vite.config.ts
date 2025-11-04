@@ -4,6 +4,9 @@ import path from 'path';
 
 // Vite 7 + React 19 + Tailwind CSS 4 Optimized Configuration
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0'),
+  },
   plugins: [
     react({
       // React 19 automatic JSX runtime

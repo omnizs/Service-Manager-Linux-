@@ -6,8 +6,19 @@ export interface Settings {
   updateInterval: number; // in minutes
 }
 
+const getPreferredTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined') {
+    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  return 'dark';
+};
+
+const sanitizeTheme = (theme: unknown): 'light' | 'dark' => {
+  return theme === 'light' ? 'light' : 'dark';
+};
+
 const DEFAULT_SETTINGS: Settings = {
-  theme: 'dark',
+  theme: getPreferredTheme(),
   autoUpdate: true,
   updateInterval: 5,
 };
@@ -20,7 +31,9 @@ const loadSettings = (): Settings => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...DEFAULT_SETTINGS, ...parsed, theme: 'dark' };
+      const merged = { ...DEFAULT_SETTINGS, ...parsed } as Settings;
+      merged.theme = sanitizeTheme((parsed as Settings).theme);
+      return merged;
     }
   } catch (error) {
     console.error('Failed to load settings', error);
@@ -58,7 +71,9 @@ export const useSettings = () => {
       if (e.key === STORAGE_KEY && e.newValue) {
         try {
           const newSettings = JSON.parse(e.newValue);
-          setSettings({ ...DEFAULT_SETTINGS, ...newSettings, theme: 'dark' });
+          const merged = { ...DEFAULT_SETTINGS, ...newSettings } as Settings;
+          merged.theme = sanitizeTheme((newSettings as Settings).theme);
+          setSettings(merged);
         } catch (error) {
           console.error('Failed to sync settings', error);
         }
@@ -71,12 +86,13 @@ export const useSettings = () => {
 
   // Memoized update function - React 19 optimization
   const updateSettings = useCallback((partial: Partial<Settings>) => {
-    const safePartial = { ...partial };
-    if (safePartial.theme && safePartial.theme !== 'dark') {
-      safePartial.theme = 'dark';
-    }
-
-    setSettings(prev => ({ ...prev, ...safePartial, theme: 'dark' }));
+    setSettings(prev => {
+      const next = { ...prev, ...partial } as Settings;
+      if (partial.theme) {
+        next.theme = sanitizeTheme(partial.theme);
+      }
+      return next;
+    });
   }, []);
 
   // Memoized reset function - React 19 optimization
