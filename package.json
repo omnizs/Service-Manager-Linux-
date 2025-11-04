@@ -102,12 +102,6 @@
       "icon": "resources/icon.png",
       "executableName": "service-manager",
       "artifactName": "service-manager-${version}.${ext}",
-      "desktop": {
-        "Name": "Service Manager",
-        "GenericName": "Service Manager",
-        "Comment": "Manage system services",
-        "Categories": "System;Settings;"
-      },
       "packageCategory": "admin",
       "maintainer": "omnizs <omnizs@users.noreply.github.com>",
       "vendor": "omnizs",
