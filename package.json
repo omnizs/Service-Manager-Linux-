@@ -114,7 +114,14 @@
         }
       ],
       "category": "System",
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.png",
+      "executableName": "service-manager",
+      "artifactName": "service-manager_${version}_${arch}.${ext}",
+      "packageCategory": "admin",
+      "maintainer": "omnizs <omnizs@users.noreply.github.com>",
+      "vendor": "omnizs",
+      "synopsis": "Cross-platform service manager",
+      "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS."
     },
     "win": {
       "target": [
