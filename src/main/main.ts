@@ -28,7 +28,7 @@ import {
   CircuitBreaker,
 } from '../utils/errorHandler';
 import { CONFIG } from './config';
-import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, type UpdateInfo } from './updater';
+import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, applyPendingUpdate, type UpdateInfo } from './updater';
 
 const execAsync = promisify(exec);
 
@@ -492,6 +492,16 @@ ipcMain.handle('app:manualUpdateCheck', async (): Promise<IpcResponse<void>> => 
     return { ok: true };
   } catch (error) {
     console.error('[ERROR] app:manualUpdateCheck failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+ipcMain.handle('app:applyPendingUpdate', async (): Promise<IpcResponse<boolean>> => {
+  try {
+    const applied = applyPendingUpdate();
+    return { ok: true, data: applied };
+  } catch (error) {
+    console.error('[ERROR] app:applyPendingUpdate failed:', error);
     return { ok: false, error: sanitizeError(error) };
   }
 });

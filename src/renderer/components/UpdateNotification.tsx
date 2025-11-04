@@ -1,27 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { UpdateInfo, UpdateProgress } from '../../types/service';
+
+type NotificationPhase = 'available' | 'downloading' | 'ready';
 
 export const UpdateNotification: React.FC = () => {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
-  const [showNotification, setShowNotification] = useState(false);
+  const [phase, setPhase] = useState<NotificationPhase>('available');
+  const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [downloadedVersion, setDownloadedVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    // Listen for update available events
-    const unsubscribe = window.serviceAPI.onUpdateAvailable((info) => {
+    const offAvailable = window.serviceAPI.onUpdateAvailable((info) => {
       setUpdateInfo(info);
-      setShowNotification(true);
+      setPhase(info.installMethod === 'packaged' ? 'downloading' : 'available');
+      setProgress(null);
+      setDownloadedVersion(null);
+      setVisible(true);
     });
 
-    // Listen for download progress
-    const unsubscribeProgress = window.serviceAPI.onUpdateProgress((prog) => {
+    const offProgress = window.serviceAPI.onUpdateProgress((prog) => {
       setProgress(prog);
+      setPhase('downloading');
+      setVisible(true);
+    });
+
+    const offDownloaded = window.serviceAPI.onUpdateDownloaded(({ version }) => {
+      setPhase('ready');
+      setDownloadedVersion(version);
+      setProgress(null);
+      setVisible(true);
     });
 
     return () => {
-      unsubscribe();
-      unsubscribeProgress();
+      offAvailable();
+      offProgress();
+      offDownloaded();
     };
   }, []);
 
@@ -33,139 +48,193 @@ export const UpdateNotification: React.FC = () => {
     }
   };
 
-  const handleDismiss = () => {
-    setShowNotification(false);
+  const handleClose = () => {
+    setVisible(false);
+    setProgress(null);
   };
 
-  if (!showNotification || !updateInfo) {
+  const handleRestartNow = async () => {
+    await window.serviceAPI.applyPendingUpdate();
+  };
+
+  const title = useMemo(() => {
+    if (!updateInfo) return 'Update available';
+    if (updateInfo.installMethod === 'npm') {
+      return 'Update available';
+    }
+    if (phase === 'ready') {
+      return 'Update ready to install';
+    }
+    if (phase === 'downloading') {
+      return 'Downloading update';
+    }
+    return 'Update available';
+  }, [updateInfo, phase]);
+
+  if (!visible || !updateInfo) {
     return null;
   }
+
+  const currentVersion = updateInfo.currentVersion ? `v${updateInfo.currentVersion}` : 'Current version';
+  const latestVersion = updateInfo.latestVersion ? `v${updateInfo.latestVersion}` : 'Latest version';
 
   return (
     <div
       style={{
         position: 'fixed',
-        top: '20px',
-        right: '20px',
-        backgroundColor: '#ffffff',
-        border: '1px solid #000000',
-        padding: '20px',
-        width: '400px',
-        maxWidth: 'calc(100vw - 40px)',
-        zIndex: 1000,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        bottom: '24px',
+        right: '24px',
+        width: '320px',
+        maxWidth: 'calc(100vw - 48px)',
+        padding: '18px 20px',
+        borderRadius: '14px',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        boxShadow: '0 30px 70px rgba(15, 23, 42, 0.35)',
+        border: '1px solid rgba(148, 163, 184, 0.2)',
+        backdropFilter: 'blur(12px)',
+        zIndex: 2000,
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-          {updateInfo.installMethod === 'npm' ? '📦 Update Available' : '🚀 Update Ready'}
-        </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>{title}</h3>
+          <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#94a3b8', lineHeight: 1.5 }}>
+            {updateInfo.installMethod === 'npm'
+              ? 'A new version is available. Update using the command below.'
+              : phase === 'ready'
+              ? 'Restart the application to finish installing the update.'
+              : 'The latest update is being downloaded in the background.'}
+          </p>
+        </div>
         <button
-          onClick={handleDismiss}
+          onClick={handleClose}
+          aria-label="Dismiss update notification"
           style={{
-            background: 'none',
+            background: 'transparent',
             border: 'none',
+            color: '#64748b',
+            fontSize: '16px',
             cursor: 'pointer',
-            fontSize: '18px',
-            padding: '0',
+            padding: 0,
             lineHeight: 1,
           }}
-          aria-label="Dismiss"
         >
-          ✕
+          ×
         </button>
       </div>
 
-      <div style={{ marginBottom: '12px', fontSize: '14px', lineHeight: 1.6 }}>
-        <p style={{ margin: '0 0 8px 0' }}>
-          <strong>Current:</strong> v{updateInfo.currentVersion}
-          <br />
-          <strong>Latest:</strong> v{updateInfo.latestVersion}
-        </p>
+      <div style={{ marginTop: '14px', fontSize: '12px', color: '#cbd5f5' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span>{currentVersion}</span>
+          <span>{latestVersion}</span>
+        </div>
 
-        {updateInfo.installMethod === 'npm' && (
-          <>
-            <p style={{ margin: '8px 0', color: '#666' }}>
-              Run this command in your terminal to update:
-            </p>
-            <div
-              style={{
-                backgroundColor: '#f5f5f5',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                wordBreak: 'break-all',
-                marginBottom: '12px',
-              }}
-            >
-              {updateInfo.updateCommand}
-            </div>
-            <button
-              onClick={handleCopyCommand}
-              style={{
-                backgroundColor: copied ? '#4CAF50' : '#000000',
-                color: '#ffffff',
-                border: 'none',
-                padding: '8px 16px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                width: '100%',
-                transition: 'opacity 0.2s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              {copied ? '✓ Copied!' : '📋 Copy Command'}
-            </button>
-          </>
-        )}
-
-        {updateInfo.installMethod === 'packaged' && progress && (
-          <>
-            <p style={{ margin: '8px 0', color: '#666' }}>
-              Downloading update... {Math.round(progress.percent)}%
-            </p>
+        {updateInfo.installMethod === 'packaged' && phase === 'downloading' && progress && (
+          <div style={{ marginTop: '10px' }}>
             <div
               style={{
                 width: '100%',
-                height: '8px',
-                backgroundColor: '#f0f0f0',
-                borderRadius: '4px',
+                height: '6px',
+                backgroundColor: 'rgba(148, 163, 184, 0.2)',
+                borderRadius: '999px',
                 overflow: 'hidden',
               }}
             >
               <div
                 style={{
-                  width: `${progress.percent}%`,
+                  width: `${Math.min(Math.round(progress.percent), 100)}%`,
                   height: '100%',
-                  backgroundColor: '#000000',
-                  transition: 'width 0.3s',
+                  background: 'linear-gradient(90deg, #38bdf8, #6366f1)',
+                  transition: 'width 0.2s ease',
                 }}
               />
             </div>
-          </>
+            <span style={{ display: 'block', marginTop: '6px', fontSize: '11px', color: '#94a3b8' }}>
+              {Math.round(progress.percent)}% downloaded
+            </span>
+          </div>
         )}
 
-        {updateInfo.installMethod === 'packaged' && !progress && (
-          <p style={{ margin: '8px 0', color: '#666' }}>
-            The update will install automatically when you close the application.
-          </p>
+        {updateInfo.installMethod === 'packaged' && phase === 'ready' && (
+          <div style={{ marginTop: '12px' }}>
+            <button
+              onClick={handleRestartNow}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #38bdf8, #6366f1)',
+                color: '#f8fafc',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Restart to Install {downloadedVersion ? `v${downloadedVersion}` : 'Update'}
+            </button>
+            <span style={{ display: 'block', marginTop: '6px', fontSize: '11px', color: '#94a3b8' }}>
+              Or close the application to install automatically.
+            </span>
+          </div>
         )}
-      </div>
 
-      {updateInfo.installMethod === 'npm' && (
-        <div style={{ fontSize: '12px', color: '#999', marginTop: '12px' }}>
+        {updateInfo.installMethod === 'npm' && (
+          <div style={{ marginTop: '12px' }}>
+            <code
+              style={{
+                display: 'block',
+                background: 'rgba(15, 118, 110, 0.12)',
+                color: '#f1f5f9',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                lineHeight: 1.5,
+                wordBreak: 'break-all',
+                border: '1px solid rgba(45, 212, 191, 0.25)',
+              }}
+            >
+              {updateInfo.updateCommand}
+            </code>
+            <button
+              onClick={handleCopyCommand}
+              style={{
+                marginTop: '10px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: 'none',
+                background: copied ? '#10b981' : '#1f2937',
+                color: '#f8fafc',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {copied ? 'Copied' : 'Copy Command'}
+            </button>
+          </div>
+        )}
+
+        {updateInfo.installMethod === 'npm' && (
           <a
             href="https://github.com/omnizs/Service-Manager/releases/latest"
             target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: '#000000', textDecoration: 'underline' }}
+            rel="noreferrer"
+            style={{
+              display: 'inline-block',
+              marginTop: '10px',
+              fontSize: '11px',
+              color: '#38bdf8',
+              textDecoration: 'none',
+            }}
           >
-            View Release Notes
+            View release notes
           </a>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

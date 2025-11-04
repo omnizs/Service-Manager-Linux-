@@ -10,6 +10,8 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
+let pendingUpdateVersion: string | null = null;
+
 export interface UpdateInfo {
   available: boolean;
   currentVersion: string;
@@ -96,7 +98,7 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
   // For packaged apps, use electron-updater
   if (installMethod === 'packaged') {
     try {
-      const updateCheckResult = await autoUpdater.checkForUpdates();
+      const updateCheckResult = await autoUpdater.checkForUpdatesAndNotify();
       
       if (updateCheckResult && updateCheckResult.updateInfo) {
         const available = compareVersions(updateCheckResult.updateInfo.version, currentVersion) > 0;
@@ -142,6 +144,7 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     console.log('[UPDATE] Update available:', info.version);
     mainWindow.webContents.send('update:available', {
       version: info.version,
+      currentVersion: app.getVersion(),
       releaseNotes: info.releaseNotes,
     });
   });
@@ -158,6 +161,11 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   // Update downloaded
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[UPDATE] Update downloaded:', info.version);
+    pendingUpdateVersion = info.version;
+    mainWindow.webContents.send('update:downloaded', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
     
     void dialog.showMessageBox(mainWindow, {
       type: 'info',
@@ -182,9 +190,17 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     });
   });
   
+  app.on('before-quit', () => {
+    if (pendingUpdateVersion) {
+      console.log(`[UPDATE] Installing pending update ${pendingUpdateVersion} on quit`);
+    }
+  });
+
   // Check for updates on startup
   console.log('[UPDATE] Checking for updates on startup...');
-  void autoUpdater.checkForUpdates();
+  void autoUpdater.checkForUpdatesAndNotify().catch(error => {
+    console.error('[UPDATE] Failed to check for updates:', error);
+  });
 }
 
 /**
@@ -249,5 +265,16 @@ export async function performManualUpdateCheck(mainWindow: BrowserWindow): Promi
       buttons: ['OK'],
     });
   }
+}
+
+export function applyPendingUpdate(): boolean {
+  if (pendingUpdateVersion) {
+    console.log(`[UPDATE] Applying pending update ${pendingUpdateVersion} via manual trigger`);
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.quitAndInstall();
+    return true;
+  }
+  console.log('[UPDATE] No pending update to apply');
+  return false;
 }
 

@@ -83,8 +83,10 @@ export interface ServiceAPI {
   onServiceEvent(handler: (payload: unknown) => void): () => void;
   checkForUpdates(): Promise<IpcResponse<UpdateInfo>>;
   manualUpdateCheck(): Promise<IpcResponse<void>>;
+  applyPendingUpdate(): Promise<IpcResponse<boolean>>;
   onUpdateAvailable(handler: (updateInfo: UpdateInfo) => void): () => void;
   onUpdateProgress(handler: (progress: UpdateProgress) => void): () => void;
+  onUpdateDownloaded(handler: (payload: { version: string; releaseNotes?: string }) => void): () => void;
   onUpdateError(handler: (error: { message: string }) => void): () => void;
 }
 

@@ -34,12 +34,14 @@ const api: ServiceAPI = {
     ipcRenderer.invoke('app:checkForUpdates') as Promise<IpcResponse<UpdateInfo>>,
   manualUpdateCheck: () =>
     ipcRenderer.invoke('app:manualUpdateCheck') as Promise<IpcResponse<void>>,
+  applyPendingUpdate: () =>
+    ipcRenderer.invoke('app:applyPendingUpdate') as Promise<IpcResponse<boolean>>,
   onUpdateAvailable: (handler: (updateInfo: UpdateInfo) => void) => {
     const npmListener = (_event: IpcRendererEvent, updateInfo: UpdateInfo) => handler(updateInfo);
-    const regularListener = (_event: IpcRendererEvent, data: { version: string; releaseNotes?: string }) => {
+    const regularListener = (_event: IpcRendererEvent, data: { version: string; currentVersion: string; releaseNotes?: string }) => {
       handler({
         available: true,
-        currentVersion: '',
+        currentVersion: data.currentVersion,
         latestVersion: data.version,
         installMethod: 'packaged',
         releaseNotes: data.releaseNotes,
@@ -56,6 +58,11 @@ const api: ServiceAPI = {
     const listener = (_event: IpcRendererEvent, progress: UpdateProgress) => handler(progress);
     ipcRenderer.on('update:progress', listener);
     return () => ipcRenderer.removeListener('update:progress', listener);
+  },
+  onUpdateDownloaded: (handler: (payload: { version: string; releaseNotes?: string }) => void) => {
+    const listener = (_event: IpcRendererEvent, payload: { version: string; releaseNotes?: string }) => handler(payload);
+    ipcRenderer.on('update:downloaded', listener);
+    return () => ipcRenderer.removeListener('update:downloaded', listener);
   },
   onUpdateError: (handler: (error: { message: string }) => void) => {
     const listener = (_event: IpcRendererEvent, error: { message: string }) => handler(error);
