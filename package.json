@@ -94,34 +94,25 @@
     },
     "linux": {
       "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "rpm",
-          "arch": [
-            "x64"
-          ]
-        }
+        "AppImage",
+        "deb",
+        "rpm"
       ],
       "category": "System",
       "icon": "resources/icon.png",
       "executableName": "service-manager",
-      "artifactName": "service-manager_${version}_${arch}.${ext}",
+      "artifactName": "service-manager-${version}.${ext}",
+      "desktop": {
+        "Name": "Service Manager",
+        "GenericName": "Service Manager",
+        "Comment": "Manage system services",
+        "Categories": "System;Settings;"
+      },
       "packageCategory": "admin",
       "maintainer": "omnizs <omnizs@users.noreply.github.com>",
       "vendor": "omnizs",
       "synopsis": "Cross-platform service manager",
-      "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS."
+      "description": "Cross-platform graphical utility for managing system services"
     },
     "win": {
       "target": [
