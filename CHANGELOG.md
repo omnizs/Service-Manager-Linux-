@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2025-11-04
+
+### Added
+
+- Restored light theme support with refined toggles in settings and quick switch in header
+- Dynamic version metadata surfaced in settings and build via `__APP_VERSION__`
+- Improved auto-update notification workflow with restart control and download state indicators
+
+### Changed
+
+- Update overlay redesigned with modern styling, progress indicator, and restart prompt
+- Theme preferences now honor OS settings and persist across sessions and tabs
+- Header and settings panels updated with additional accessibility cues and visual polish
+
+### Fixed
+
+- Auto-updater now consistently installs downloads on relaunch and surfaces errors in UI
+- Version label in settings reflects the actual app version instead of outdated value
+
 ## [2.6.0] - 2025-11-04
 
 ### Added
