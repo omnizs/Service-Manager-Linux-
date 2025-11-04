@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo } from 'react';
+import React, { memo, useEffect } from 'react';
 import type { Settings as SettingsType } from '../hooks/useSettings';
 
 interface SettingsProps {
@@ -24,13 +24,7 @@ const Settings: React.FC<SettingsProps> = memo(({ isOpen, onClose, settings, onU
   }, [isOpen, onClose]);
   if (!isOpen) return null;
 
-  const versionLabel = useMemo(() => {
-    try {
-      return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.6.1';
-    } catch {
-      return '2.6.1';
-    }
-  }, []);
+  const versionLabel = __APP_VERSION__ || '2.6.1';
 
   const handleAutoUpdateToggle = () => {
     onUpdateSettings({ autoUpdate: !settings.autoUpdate });

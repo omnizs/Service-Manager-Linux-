@@ -18,7 +18,9 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = memo(({ service }) => {
   };
 
   const handleOpenPath = (path: string) => {
-    window.serviceAPI.openPath(path);
+    if (window.serviceAPI) {
+      window.serviceAPI.openPath(path);
+    }
   };
 
   if (!service) {

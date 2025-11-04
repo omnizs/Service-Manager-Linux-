@@ -33,6 +33,12 @@ const App: React.FC = () => {
   // Refresh services - removed filter from API call to fix filtering
   const refreshServices = useCallback(async (showLoader = true) => {
     if (loading || isRefreshing) return;
+    
+    if (!window.serviceAPI) {
+      console.error('Service API not available');
+      addToast('Service API not available. Please restart the application.', 'error');
+      return;
+    }
 
     setIsRefreshing(true);
     const startTime = performance.now();
@@ -118,6 +124,10 @@ const App: React.FC = () => {
   // Handle service selection
   const handleServiceSelect = useCallback(async (service: ServiceInfo) => {
     setSelectedService(service);
+    
+    if (!window.serviceAPI) {
+      return;
+    }
 
     try {
       const response = await window.serviceAPI.getServiceDetails(service.id);
@@ -134,6 +144,11 @@ const App: React.FC = () => {
 
   // Handle service actions
   const handleServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
+    if (!window.serviceAPI) {
+      addToast('Service API not available', 'error');
+      return;
+    }
+    
     try {
       const response = await window.serviceAPI.controlService(serviceId, action as any);
       if (!response || !response.ok) {
