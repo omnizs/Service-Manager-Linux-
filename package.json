@@ -29,7 +29,10 @@
     "system-administration",
     "cross-platform"
   ],
-  "author": "omnizs",
+  "author": {
+    "name": "omnizs",
+    "email": "omnizs@users.noreply.github.com"
+  },
   "license": "MIT",
   "type": "commonjs",
   "repository": {
