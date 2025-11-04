@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2025-11-04
+
+### Added
+
+- **Comprehensive Auto-Update System**: Intelligent update detection and management
+  - Smart installation method detection (npm, packaged, or source)
+  - For npm installations: Non-intrusive notification with one-click command copy
+  - For packaged apps: Automatic background downloads with progress indicator
+  - Auto-install on app close or immediate restart option
+- **UpdateNotification Component**: Beautiful React notification UI with progress tracking
+- **Update API**: New IPC handlers and event listeners for update management
+  - `checkForUpdates()`: Programmatic update checking
+  - `manualUpdateCheck()`: Manual check with UI dialogs
+  - `onUpdateAvailable()`, `onUpdateProgress()`, `onUpdateError()` event listeners
+- **Version Comparison**: Semantic versioning comparison for accurate update detection
+- **Release Notes Display**: Direct links to GitHub release notes
+
+### Changed
+
+- Update checking now happens automatically 3 seconds after app startup
+- Preload bridge enhanced with update-related APIs
+- TypeScript types extended with `UpdateInfo` and `UpdateProgress` interfaces
+
+### Technical
+
+- Created `src/main/updater.ts`: Core update detection and management (313 lines)
+- Created `src/renderer/components/UpdateNotification.tsx`: UI component (147 lines)
+- Enhanced `src/preload.ts` with update event listeners
+- Added IPC handlers in `src/main/main.ts` for update operations
+
 ## [2.5.1] - 2025-11-04
 
 ### Fixed
