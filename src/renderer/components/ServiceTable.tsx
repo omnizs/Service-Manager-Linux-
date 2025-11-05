@@ -17,7 +17,8 @@ interface ServiceTableProps {
   onServiceAction: (serviceId: string, action: string, serviceName: string) => void;
 }
 
-const ITEMS_PER_PAGE = 100;
+// RAM optimization: reduce page size to lower memory usage
+const ITEMS_PER_PAGE = 50;
 
 const ServiceTable: React.FC<ServiceTableProps> = memo(({
   services,

@@ -13,6 +13,7 @@ import type {
   ServiceControlResult,
   ServiceInfo,
   ServiceListFilters,
+  ServiceBackup,
 } from '../types/service';
 import {
   isValidServiceId,
@@ -29,8 +30,15 @@ import {
 } from '../utils/errorHandler';
 import { CONFIG } from './config';
 import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, applyPendingUpdate, type UpdateInfo } from './updater';
+import { createBackup, listBackups, getBackup, deleteBackup } from './backups';
 
 const execAsync = promisify(exec);
+
+// RAM optimization: Configure Chromium flags for reduced memory usage
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
+app.commandLine.appendSwitch('renderer-process-limit', '1');
 
 interface ServicesControlPayload {
   serviceId: string;
@@ -46,7 +54,7 @@ interface CacheEntry {
 }
 
 /**
- * Ordered cache implementation with LRU eviction
+ * Ordered cache implementation with LRU eviction and memory optimization
  */
 class OrderedCache<K, V> {
   private cache = new Map<K, V>();
@@ -76,6 +84,21 @@ class OrderedCache<K, V> {
   
   clear(): void {
     this.cache.clear();
+  }
+  
+  // RAM optimization: remove expired entries
+  clearExpired(ttl: number): void {
+    const now = Date.now();
+    const keysToDelete: K[] = [];
+    
+    this.cache.forEach((value, key) => {
+      const entry = value as unknown as CacheEntry;
+      if (entry.timestamp && now - entry.timestamp > ttl) {
+        keysToDelete.push(key);
+      }
+    });
+    
+    keysToDelete.forEach(key => this.cache.delete(key));
   }
   
   get size(): number {
@@ -188,6 +211,9 @@ function createMainWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
+      // RAM optimization: reduce memory footprint
+      backgroundThrottling: true,
+      enablePreferredSizeMode: true,
     },
     title: 'Service Manager',
   });
@@ -217,6 +243,10 @@ function createMainWindow(): void {
     mainWindow = null;
     // Clear cache on window close
     servicesCache.clear();
+    // Force garbage collection if available (RAM optimization)
+    if (global.gc) {
+      global.gc();
+    }
   });
 }
 
@@ -253,6 +283,17 @@ app.whenReady().then(() => {
     });
   });
 
+  // RAM optimization: clear expired cache entries periodically
+  setInterval(() => {
+    // Clear only expired entries instead of entire cache
+    servicesCache.clearExpired(CONFIG.CACHE.TTL_MS);
+    
+    // Force GC if available and app has been idle
+    if (global.gc && mainWindow && !mainWindow.isFocused()) {
+      global.gc();
+    }
+  }, 2 * 60 * 1000); // Every 2 minutes
+
   // Check for elevated privileges and show warning if needed
   void showPrivilegeWarning().then(() => {
     createMainWindow();
@@ -268,6 +309,11 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+  // Clear cache and force GC on app close (RAM optimization)
+  servicesCache.clear();
+  if (global.gc) {
+    global.gc();
   }
 });
 
@@ -511,6 +557,166 @@ ipcMain.handle('app:applyPendingUpdate', async (): Promise<IpcResponse<boolean>>
  */
 ipcMain.handle('app:getVersion', async (): Promise<string> => {
   return app.getVersion();
+});
+
+/**
+ * IPC Handler: Create backup
+ */
+ipcMain.handle('backup:create', async (): Promise<IpcResponse<ServiceBackup>> => {
+  try {
+    const servicesResponse = await serviceCircuitBreaker.execute(() =>
+      withTimeout(
+        () => withRetry(() => listServices({})),
+        CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
+        'Service list operation timed out'
+      )
+    );
+
+    const backup = createBackup(servicesResponse);
+    
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Backup created: ${backup.id} at ${new Date(backup.timestamp).toISOString()}`);
+    }
+
+    return { ok: true, data: backup };
+  } catch (error) {
+    console.error('[ERROR] backup:create failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: List backups
+ */
+ipcMain.handle('backup:list', async (): Promise<IpcResponse<ServiceBackup[]>> => {
+  try {
+    const backups = listBackups();
+    return { ok: true, data: backups };
+  } catch (error) {
+    console.error('[ERROR] backup:list failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Get backup
+ */
+ipcMain.handle('backup:get', async (_event, id?: string): Promise<IpcResponse<ServiceBackup | null>> => {
+  try {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Backup ID is required');
+    }
+
+    const backup = getBackup(id);
+    return { ok: true, data: backup };
+  } catch (error) {
+    console.error('[ERROR] backup:get failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Delete backup
+ */
+ipcMain.handle('backup:delete', async (_event, id?: string): Promise<IpcResponse<boolean>> => {
+  try {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Backup ID is required');
+    }
+
+    const result = deleteBackup(id);
+    
+    if (result && CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Backup deleted: ${id} at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error('[ERROR] backup:delete failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Restore backup
+ */
+ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>> => {
+  try {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Backup ID is required');
+    }
+
+    const backup = getBackup(id);
+    if (!backup) {
+      throw new Error('Backup not found');
+    }
+
+    // Check platform compatibility
+    if (backup.platform !== process.platform) {
+      throw new Error(`Backup is from ${backup.platform}, cannot restore on ${process.platform}`);
+    }
+
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    // Get current service states
+    const currentServices = await serviceCircuitBreaker.execute(() =>
+      withTimeout(
+        () => withRetry(() => listServices({})),
+        CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
+        'Service list operation timed out'
+      )
+    );
+
+    const currentServiceMap = new Map(currentServices.map(s => [s.id, s]));
+
+    // Restore each service from backup
+    for (const backupService of backup.services) {
+      const currentService = currentServiceMap.get(backupService.id);
+      if (!currentService) {
+        failed++;
+        errors.push(`Service ${backupService.name} not found`);
+        continue;
+      }
+
+      try {
+        const currentStatus = currentService.status.toLowerCase();
+        const backupStatus = backupService.status.toLowerCase();
+        const isCurrentlyRunning = currentStatus.includes('active') || currentStatus.includes('running');
+        const shouldBeRunning = backupStatus.includes('active') || backupStatus.includes('running');
+
+        if (isCurrentlyRunning !== shouldBeRunning) {
+          const action = shouldBeRunning ? 'start' : 'stop';
+          await controlService(backupService.id, action);
+        }
+
+        const isCurrentlyEnabled = currentService.startupType.toLowerCase().includes('enabled') || 
+                                   currentService.startupType.toLowerCase().includes('automatic');
+        if (isCurrentlyEnabled !== backupService.enabled) {
+          const action = backupService.enabled ? 'enable' : 'disable';
+          await controlService(backupService.id, action);
+        }
+
+        success++;
+      } catch (error) {
+        failed++;
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`${backupService.name}: ${errorMsg}`);
+      }
+    }
+
+    servicesCache.clear();
+
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Backup restored: ${id} (${success} success, ${failed} failed) at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: { success, failed, errors } };
+  } catch (error) {
+    console.error('[ERROR] backup:restore failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
 });
 
 /**
