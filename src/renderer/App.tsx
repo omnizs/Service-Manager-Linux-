@@ -11,10 +11,11 @@ import { useSettings } from './hooks/useSettings';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
 
 const App: React.FC = () => {
+  // RAM optimization: single source of truth for services, compute filtered on-demand
   const [services, setServices] = useState<ServiceInfo[]>([]);
-  const [filteredServices, setFilteredServices] = useState<ServiceInfo[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -30,6 +31,14 @@ const App: React.FC = () => {
   // Platform detection
   const platform = navigator.platform || 'Unknown';
   const os = platform.includes('Win') ? 'Windows' : platform.includes('Mac') ? 'macOS' : 'Linux';
+
+  // RAM optimization: debounce search query to reduce filtering frequency
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Refresh services - removed filter from API call to fix filtering
   const refreshServices = useCallback(async (showLoader = true) => {
@@ -73,74 +82,77 @@ const App: React.FC = () => {
     }
   }, [loading, isRefreshing, addToast]);
 
-  // Apply filters client-side - optimized with useMemo-style logic
+  // RAM optimization: compute filtered services on-demand using useMemo with debounced search
+  const filteredServices = React.useMemo(() => {
+    let filtered = services;
+    const search = debouncedSearchQuery.trim().toLowerCase();
+
+    // Search filter - optimized with early return
+    if (search) {
+      filtered = filtered.filter((item) => {
+        const name = item.name.toLowerCase();
+        if (name.includes(search)) return true;
+        
+        const desc = item.description?.toLowerCase();
+        if (desc?.includes(search)) return true;
+        
+        const exec = item.executable?.toLowerCase();
+        return exec?.includes(search) ?? false;
+      });
+    }
+
+    // Status filter - map Running/Stopped to actual service statuses
+    if (statusFilter && statusFilter !== 'all') {
+      filtered = filtered.filter((item) => {
+        const status = (item.status || '').toLowerCase();
+        
+        if (statusFilter === 'running') {
+          // Match: active, running, started
+          return status.includes('active') || status.includes('running') || status.includes('started');
+        } else if (statusFilter === 'stopped') {
+          // Match: inactive, stopped, dead
+          return status.includes('inactive') || status.includes('stopped') || status.includes('dead');
+        }
+        
+        return false;
+      });
+    }
+
+    return filtered;
+  }, [services, debouncedSearchQuery, statusFilter]);
+
+  // Clear selection if filtered out
   useEffect(() => {
-    // Use requestIdleCallback for non-urgent filtering (React 19 optimization)
-    const filterId = requestIdleCallback(() => {
-      let filtered = services.slice();
-      const search = searchQuery.trim().toLowerCase();
+    if (selectedService && !filteredServices.find(s => s.id === selectedService.id)) {
+      setSelectedService(null);
+    }
+  }, [filteredServices, selectedService]);
 
-      // Search filter - optimized with early return
-      if (search) {
-        filtered = filtered.filter((item) => {
-          const name = item.name.toLowerCase();
-          if (name.includes(search)) return true;
-          
-          const desc = item.description?.toLowerCase();
-          if (desc?.includes(search)) return true;
-          
-          const exec = item.executable?.toLowerCase();
-          return exec?.includes(search) ?? false;
-        });
-      }
-
-      // Status filter - map Running/Stopped to actual service statuses
-      if (statusFilter && statusFilter !== 'all') {
-        filtered = filtered.filter((item) => {
-          const status = (item.status || '').toLowerCase();
-          
-          if (statusFilter === 'running') {
-            // Match: active, running, started
-            return status.includes('active') || status.includes('running') || status.includes('started');
-          } else if (statusFilter === 'stopped') {
-            // Match: inactive, stopped, dead
-            return status.includes('inactive') || status.includes('stopped') || status.includes('dead');
-          }
-          
-          return false;
-        });
-      }
-
-      setFilteredServices(filtered);
-
-      // Clear selection if filtered out
-      if (selectedService && !filtered.find(s => s.id === selectedService.id)) {
-        setSelectedService(null);
-      }
-    });
-
-    return () => cancelIdleCallback(filterId);
-  }, [services, searchQuery, statusFilter, selectedService]);
-
-  // Handle service selection
+  // RAM optimization: Handle service selection with lazy detail loading
   const handleServiceSelect = useCallback(async (service: ServiceInfo) => {
+    // Set basic info immediately for fast UI response
     setSelectedService(service);
     
     if (!window.serviceAPI) {
       return;
     }
 
-    try {
-      const response = await window.serviceAPI.getServiceDetails(service.id);
-      if (response && response.ok && response.data) {
-        setSelectedService({
-          ...service,
-          ...response.data,
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to load service details', error);
-    }
+    // Load details in background using requestIdleCallback for low priority
+    requestIdleCallback(() => {
+      window.serviceAPI.getServiceDetails(service.id).then(response => {
+        if (response && response.ok && response.data) {
+          setSelectedService(prev => {
+            // Only update if still the same service
+            if (prev?.id === service.id) {
+              return { ...service, ...response.data };
+            }
+            return prev;
+          });
+        }
+      }).catch(error => {
+        console.warn('Failed to load service details', error);
+      });
+    });
   }, []);
 
   // Handle service actions

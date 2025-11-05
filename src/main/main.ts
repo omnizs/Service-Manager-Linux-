@@ -32,6 +32,12 @@ import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, apply
 
 const execAsync = promisify(exec);
 
+// RAM optimization: Configure Chromium flags for reduced memory usage
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
+app.commandLine.appendSwitch('renderer-process-limit', '1');
+
 interface ServicesControlPayload {
   serviceId: string;
   action: ServiceAction;
@@ -46,7 +52,7 @@ interface CacheEntry {
 }
 
 /**
- * Ordered cache implementation with LRU eviction
+ * Ordered cache implementation with LRU eviction and memory optimization
  */
 class OrderedCache<K, V> {
   private cache = new Map<K, V>();
@@ -76,6 +82,21 @@ class OrderedCache<K, V> {
   
   clear(): void {
     this.cache.clear();
+  }
+  
+  // RAM optimization: remove expired entries
+  clearExpired(ttl: number): void {
+    const now = Date.now();
+    const keysToDelete: K[] = [];
+    
+    this.cache.forEach((value, key) => {
+      const entry = value as unknown as CacheEntry;
+      if (entry.timestamp && now - entry.timestamp > ttl) {
+        keysToDelete.push(key);
+      }
+    });
+    
+    keysToDelete.forEach(key => this.cache.delete(key));
   }
   
   get size(): number {
@@ -188,6 +209,9 @@ function createMainWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
+      // RAM optimization: reduce memory footprint
+      backgroundThrottling: true,
+      enablePreferredSizeMode: true,
     },
     title: 'Service Manager',
   });
@@ -217,6 +241,10 @@ function createMainWindow(): void {
     mainWindow = null;
     // Clear cache on window close
     servicesCache.clear();
+    // Force garbage collection if available (RAM optimization)
+    if (global.gc) {
+      global.gc();
+    }
   });
 }
 
@@ -253,6 +281,17 @@ app.whenReady().then(() => {
     });
   });
 
+  // RAM optimization: clear expired cache entries periodically
+  setInterval(() => {
+    // Clear only expired entries instead of entire cache
+    servicesCache.clearExpired(CONFIG.CACHE.TTL_MS);
+    
+    // Force GC if available and app has been idle
+    if (global.gc && mainWindow && !mainWindow.isFocused()) {
+      global.gc();
+    }
+  }, 2 * 60 * 1000); // Every 2 minutes
+
   // Check for elevated privileges and show warning if needed
   void showPrivilegeWarning().then(() => {
     createMainWindow();
@@ -268,6 +307,11 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+  // Clear cache and force GC on app close (RAM optimization)
+  servicesCache.clear();
+  if (global.gc) {
+    global.gc();
   }
 });
 
