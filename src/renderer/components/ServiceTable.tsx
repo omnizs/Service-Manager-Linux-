@@ -3,6 +3,7 @@ import type { ServiceInfo } from '../../types/service';
 import StatusBadge from './StatusBadge';
 import ActionButton from './ActionButton';
 import LoadingSpinner from './LoadingSpinner';
+import { getServiceCriticality, getCriticalityIcon } from '../utils/serviceCriticality';
 
 interface ServiceTableProps {
   loading?: boolean;
@@ -50,6 +51,8 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
     const statusText = `${service.statusLabel ?? ''} ${service.status ?? ''}`.toLowerCase();
     const isRunning = ['running', 'active', 'started'].some(token => statusText.includes(token));
     const isStopped = ['stopped', 'inactive', 'dead'].some(token => statusText.includes(token));
+    const criticality = getServiceCriticality(service.name, service.id, service.description);
+    const criticalityIcon = getCriticalityIcon(criticality.level);
 
     const iconClass = isRunning
       ? 'text-emerald-400'
@@ -58,20 +61,49 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
         : 'text-blue-400';
 
     return (
-      <svg
-        className={`w-4 h-4 flex-shrink-0 ${iconClass}`}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.6}
-          d="M9.75 4.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm-7.5 7.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5z"
-        />
-      </svg>
+      <div className="flex items-center gap-1.5">
+        <svg
+          className={`w-4 h-4 flex-shrink-0 ${iconClass}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.6}
+            d="M9.75 4.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm-7.5 7.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5z"
+          />
+        </svg>
+        {criticalityIcon && (
+          <span className="text-xs" title={criticality.description}>
+            {criticalityIcon}
+          </span>
+        )}
+      </div>
     );
+  };
+
+  const getServiceTooltip = (service: ServiceInfo): string => {
+    const criticality = getServiceCriticality(service.name, service.id, service.description);
+    let tooltip = `${service.name}\n\n`;
+    
+    if (criticality.level !== 'normal') {
+      tooltip += `${getCriticalityIcon(criticality.level)} ${criticality.description}\n`;
+      if (criticality.warning) {
+        tooltip += `${criticality.warning}\n`;
+      }
+      tooltip += `\n`;
+    }
+    
+    tooltip += `Status: ${service.statusLabel || service.status}\n`;
+    tooltip += `Startup: ${formatStartupType(service.startupType)}\n`;
+    
+    if (service.description) {
+      tooltip += `\nDescription: ${service.description}`;
+    }
+    
+    return tooltip;
   };
 
   return (
@@ -147,9 +179,9 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
                   }`}
                 >
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" title={getServiceTooltip(service)}>
                       {renderServiceIcon(service)}
-                      <span className="truncate max-w-[220px]" title={service.name}>{service.name}</span>
+                      <span className="truncate max-w-[220px]">{service.name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">

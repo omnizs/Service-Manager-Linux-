@@ -90,7 +90,22 @@ Service Manager includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.5.2 (Latest)
+### Version 2.6.5 (Latest)
+
+**New Features:**
+- **Service Criticality Indicators**: Visual indicators (⚠️ for critical, ⚡ for important) help identify system-essential services
+  - Platform-aware detection for Windows, Linux (systemd), and macOS (launchd)
+  - Comprehensive tooltips with criticality warnings, status, startup type, and description
+  - Prevents accidental disruption of critical system services
+- **Enhanced Action Button Tooltips**: Detailed descriptions for all service actions (start, stop, restart, enable, disable)
+- **Application Icon Redesign**: Modern, vibrant icon with gradient-based design and improved visual clarity
+
+**Technical Improvements:**
+- New service criticality detection utility with platform-specific service lists
+- Enhanced UI components with richer tooltip information
+- Redesigned application icon with modern SVG elements
+
+### Version 2.5.2
 
 **Node.js Version Requirements Update:**
 - Updated Node.js engine requirement from `>=18.0.0` to `>=20.19.0` to align with Vite 7.x requirements

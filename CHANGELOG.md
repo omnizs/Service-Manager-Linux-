@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.5] - 2025-11-06
+
+### Added
+
+- **Service Criticality Indicators**: Visual indicators for critical and important system services
+  - Critical services (⚠️): System-essential services with warnings about stability risks
+  - Important services (⚡): Services affecting functionality with caution notes
+  - Platform-aware detection for Windows, Linux (systemd), and macOS (launchd)
+  - Comprehensive tooltips with criticality information, status, startup type, and description
+- **Enhanced Action Button Tooltips**: More descriptive tooltips explaining what each action does
+  - Detailed descriptions for start, stop, restart, enable, and disable actions
+  - Context-aware disabled state tooltips
+
+### Changed
+
+- **Application Icon Redesign**: Modern, vibrant icon with improved visual clarity
+  - New gradient-based design with blue and green accents
+  - Service grid representation with active indicator
+  - Enhanced shadow effects and depth
+  - Consistent design across all platforms and sizes
+
+### Technical
+
+- Created `src/renderer/utils/serviceCriticality.ts`: Service criticality detection utility (201 lines)
+- Enhanced `src/renderer/components/ServiceTable.tsx`: Added criticality indicators and enriched tooltips
+- Updated `src/renderer/components/ActionButton.tsx`: Improved tooltip descriptions
+- Redesigned `build/generate-icons.js`: New icon design with modern SVG elements
+
 ## [2.6.1] - 2025-11-04
 
 ### Added

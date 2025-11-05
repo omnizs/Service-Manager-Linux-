@@ -15,6 +15,14 @@ const ActionButton: React.FC<ActionButtonProps> = memo(({ action, enabled, onCli
     disable: 'Disable',
   };
 
+  const tooltips: Record<ActionButtonProps['action'], string> = {
+    start: 'Start the service - initiates the service process',
+    stop: 'Stop the service - terminates the running service process',
+    restart: 'Restart the service - stops and then starts the service',
+    enable: 'Enable the service - sets the service to start automatically',
+    disable: 'Disable the service - prevents automatic startup',
+  };
+
   const icons: Record<ActionButtonProps['action'], JSX.Element> = {
     start: (
       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -58,7 +66,7 @@ const ActionButton: React.FC<ActionButtonProps> = memo(({ action, enabled, onCli
       className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
         enabled ? `${styles[action]} cursor-pointer` : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
       }`}
-      title={`${labels[action]} service`}
+      title={enabled ? tooltips[action] : `Cannot ${labels[action].toLowerCase()} - action not available for this service`}
     >
       <span className="flex items-center gap-1.5">
         <span className="flex-shrink-0">{icons[action]}</span>
