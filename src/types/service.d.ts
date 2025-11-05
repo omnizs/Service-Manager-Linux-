@@ -74,6 +74,22 @@ export interface UpdateProgress {
   total: number;
 }
 
+export interface BackupServiceInfo {
+  id: string;
+  name: string;
+  status: string;
+  startupType: string;
+  enabled: boolean;
+}
+
+export interface ServiceBackup {
+  id: string;
+  timestamp: number;
+  services: BackupServiceInfo[];
+  platform: string;
+  totalServices: number;
+}
+
 export interface ServiceAPI {
   listServices(filters?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>>;
   controlService(serviceId: string, action: ServiceAction): Promise<IpcResponse<ServiceControlResult>>;
@@ -89,6 +105,11 @@ export interface ServiceAPI {
   onUpdateProgress(handler: (progress: UpdateProgress) => void): () => void;
   onUpdateDownloaded(handler: (payload: { version: string; releaseNotes?: string }) => void): () => void;
   onUpdateError(handler: (error: { message: string }) => void): () => void;
+  createBackup(): Promise<IpcResponse<ServiceBackup>>;
+  listBackups(): Promise<IpcResponse<ServiceBackup[]>>;
+  getBackup(id: string): Promise<IpcResponse<ServiceBackup | null>>;
+  deleteBackup(id: string): Promise<IpcResponse<boolean>>;
+  restoreBackup(id: string): Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>>;
 }
 
 declare global {
