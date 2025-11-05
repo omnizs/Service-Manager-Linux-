@@ -10,8 +10,8 @@ export const CONFIG = {
   CACHE: {
     /** Time-to-live for service list cache in milliseconds */
     TTL_MS: 500,
-    /** Maximum cache size (number of entries) */
-    MAX_SIZE: 100,
+    /** Maximum cache size (number of entries) - reduced for RAM optimization */
+    MAX_SIZE: 10,
     /** Enable/disable caching */
     ENABLED: true,
   },

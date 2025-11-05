@@ -17,10 +17,11 @@ const sanitizeTheme = (theme: unknown): 'light' | 'dark' => {
   return theme === 'light' ? 'light' : 'dark';
 };
 
+// RAM optimization: reduce default auto-refresh frequency
 const DEFAULT_SETTINGS: Settings = {
   theme: getPreferredTheme(),
   autoUpdate: true,
-  updateInterval: 5,
+  updateInterval: 10,
 };
 
 const STORAGE_KEY = 'service-manager-settings';
