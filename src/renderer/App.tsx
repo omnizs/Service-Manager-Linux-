@@ -5,6 +5,7 @@ import ServiceDetails from './components/ServiceDetails';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Settings from './components/Settings';
+import BackupManager from './components/BackupManager';
 import Toast, { useToast } from './components/Toast';
 import { UpdateNotification } from './components/UpdateNotification';
 import { useSettings } from './hooks/useSettings';
@@ -23,6 +24,7 @@ const App: React.FC = () => {
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [backupsOpen, setBackupsOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
   
   const { toasts, addToast, removeToast } = useToast();
@@ -250,11 +252,13 @@ const App: React.FC = () => {
         refreshServices(true);
       }
       
-      // Escape to clear selection or close settings
+      // Escape to clear selection or close settings/backups
       if (event.key === 'Escape') {
         event.preventDefault();
         if (settingsOpen) {
           setSettingsOpen(false);
+        } else if (backupsOpen) {
+          setBackupsOpen(false);
         } else if (selectedService) {
           setSelectedService(null);
         }
@@ -266,6 +270,12 @@ const App: React.FC = () => {
         setSettingsOpen(true);
       }
       
+      // Ctrl+B or Cmd+B to open backups
+      if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
+        event.preventDefault();
+        setBackupsOpen(true);
+      }
+      
       // Ctrl+F or Cmd+F to focus search
       if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
         event.preventDefault();
@@ -275,7 +285,7 @@ const App: React.FC = () => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [refreshServices, selectedService, settingsOpen]);
+  }, [refreshServices, selectedService, settingsOpen, backupsOpen]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
@@ -285,6 +295,7 @@ const App: React.FC = () => {
         onToggleTheme={() => updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
         onRefresh={() => refreshServices(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenBackups={() => setBackupsOpen(true)}
       />
 
       <main className="flex-1 flex overflow-hidden">
@@ -323,6 +334,12 @@ const App: React.FC = () => {
         onClose={() => setSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={updateSettings}
+      />
+
+      <BackupManager
+        isOpen={backupsOpen}
+        onClose={() => setBackupsOpen(false)}
+        onBackupCreated={() => refreshServices(false)}
       />
 
       <Toast toasts={toasts} onRemove={removeToast} />

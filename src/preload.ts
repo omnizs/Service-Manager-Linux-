@@ -9,6 +9,7 @@ import type {
   ServiceAPI,
   UpdateInfo,
   UpdateProgress,
+  ServiceBackup,
 } from './types/service';
 
 const api: ServiceAPI = {
@@ -71,6 +72,16 @@ const api: ServiceAPI = {
     ipcRenderer.on('update:error', listener);
     return () => ipcRenderer.removeListener('update:error', listener);
   },
+  createBackup: () =>
+    ipcRenderer.invoke('backup:create') as Promise<IpcResponse<ServiceBackup>>,
+  listBackups: () =>
+    ipcRenderer.invoke('backup:list') as Promise<IpcResponse<ServiceBackup[]>>,
+  getBackup: (id: string) =>
+    ipcRenderer.invoke('backup:get', id) as Promise<IpcResponse<ServiceBackup | null>>,
+  deleteBackup: (id: string) =>
+    ipcRenderer.invoke('backup:delete', id) as Promise<IpcResponse<boolean>>,
+  restoreBackup: (id: string) =>
+    ipcRenderer.invoke('backup:restore', id) as Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>>,
 };
 
 contextBridge.exposeInMainWorld('serviceAPI', api);

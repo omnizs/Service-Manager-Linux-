@@ -6,9 +6,10 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
+  onOpenBackups: () => void;
 }
 
-const Header: React.FC<HeaderProps> = memo(({ loading, theme, onToggleTheme, onRefresh, onOpenSettings }) => {
+const Header: React.FC<HeaderProps> = memo(({ loading, theme, onToggleTheme, onRefresh, onOpenSettings, onOpenBackups }) => {
   return (
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
       <div className="flex items-center justify-between px-6 py-4">
@@ -64,6 +65,17 @@ const Header: React.FC<HeaderProps> = memo(({ loading, theme, onToggleTheme, onR
               <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0C3.58 0 0.01 3.58 0.01 8C0.01 12.42 3.58 16 8 16C11.73 16 14.84 13.45 15.73 10H13.65C12.83 12.33 10.61 14 8 14C4.69 14 2 11.31 2 8C2 4.69 4.69 2 8 2C9.66 2 11.14 2.69 12.22 3.78L9 7H16V0L13.65 2.35Z" fill="currentColor"/>
             </svg>
             <span className="font-medium">Refresh</span>
+          </button>
+
+          <button
+            onClick={onOpenBackups}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer"
+            aria-label="Open backups"
+            title="Manage backups (Ctrl+B)"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
           </button>
 
           <button
