@@ -76,7 +76,6 @@ export async function listServices({ search, status }: ServiceListFilters = {}):
 }
 
 export async function controlService(serviceId: string, action: ServiceAction): Promise<ServiceControlResult> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -103,7 +102,6 @@ export async function controlService(serviceId: string, action: ServiceAction): 
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -168,7 +166,6 @@ function handleSystemctlError(error: unknown): void {
 }
 
 function normalizeServiceId(value: string): string {
-  // Additional validation - service IDs should not contain path separators
   if (value.includes('/') || value.includes('\\')) {
     throw new Error('Invalid service identifier: contains path separators');
   }

@@ -1,7 +1,3 @@
-/**
- * Service Criticality Utility
- * Determines the criticality level of system services
- */
 
 export type CriticalityLevel = 'critical' | 'important' | 'normal';
 
@@ -11,40 +7,34 @@ export interface ServiceCriticalityInfo {
   warning?: string;
 }
 
-/**
- * List of critical services by platform
- */
 const CRITICAL_SERVICES = {
-  // Windows critical services
   windows: [
-    'eventlog',           // Windows Event Log
-    'rpcss',              // Remote Procedure Call (RPC)
-    'lsm',                // Local Session Manager
-    'lsass',              // Local Security Authority Subsystem
-    'csrss',              // Client/Server Runtime Subsystem
-    'services',           // Services Control Manager
-    'smss',               // Session Manager Subsystem
-    'winlogon',           // Windows Logon Process
-    'system',             // System Process
-    'dnscache',           // DNS Client
-    'dhcp',               // DHCP Client
-    'bfe',                // Base Filtering Engine
-    'mpssvc',             // Windows Defender Firewall
+    'eventlog',
+    'rpcss',
+    'lsm',
+    'lsass',
+    'csrss',
+    'services',
+    'smss',
+    'winlogon',
+    'system',
+    'dnscache',
+    'dhcp',
+    'bfe',
+    'mpssvc',
   ],
-  // Linux critical services (systemd)
   linux: [
-    'systemd',            // System and Service Manager
-    'systemd-journald',   // Journal Service
-    'systemd-logind',     // Login Service
-    'systemd-udevd',      // Device Manager
-    'dbus',               // D-Bus System Message Bus
-    'NetworkManager',     // Network Manager
-    'sshd',               // SSH Daemon
-    'firewalld',          // Firewall Service
-    'chronyd',            // NTP Time Sync
-    'systemd-resolved',   // Network Name Resolution
+    'systemd',
+    'systemd-journald',
+    'systemd-logind',
+    'systemd-udevd',
+    'dbus',
+    'NetworkManager',
+    'sshd',
+    'firewalld',
+    'chronyd',
+    'systemd-resolved',
   ],
-  // macOS critical services (launchd)
   macos: [
     'com.apple.SystemUIServer',
     'com.apple.WindowServer',
@@ -56,35 +46,32 @@ const CRITICAL_SERVICES = {
   ],
 };
 
-/**
- * List of important but non-critical services
- */
 const IMPORTANT_SERVICES = {
   windows: [
-    'wuauserv',           // Windows Update
-    'spoolsv',            // Print Spooler
-    'audiosrv',           // Windows Audio
-    'bits',               // Background Intelligent Transfer
-    'cryptsvc',           // Cryptographic Services
-    'lanmanserver',       // Server (SMB)
-    'lanmanworkstation',  // Workstation (SMB Client)
-    'netman',             // Network Connections
-    'nsi',                // Network Store Interface
-    'schedule',           // Task Scheduler
-    'themes',             // Themes Service
-    'winmgmt',            // Windows Management Instrumentation
-    'wscsvc',             // Security Center
+    'wuauserv',
+    'spoolsv',
+    'audiosrv',
+    'bits',
+    'cryptsvc',
+    'lanmanserver',
+    'lanmanworkstation',
+    'netman',
+    'nsi',
+    'schedule',
+    'themes',
+    'winmgmt',
+    'wscsvc',
   ],
   linux: [
-    'bluetooth',          // Bluetooth Service
-    'cups',               // Printing Service
-    'avahi-daemon',       // Avahi mDNS/DNS-SD
-    'accounts-daemon',    // User Accounts Service
-    'bluetooth',          // Bluetooth
-    'polkit',             // Policy Kit
-    'udisks2',            // Disk Manager
-    'rtkit-daemon',       // Real-time Kit
-    'colord',             // Color Management
+    'bluetooth',
+    'cups',
+    'avahi-daemon',
+    'accounts-daemon',
+    'bluetooth',
+    'polkit',
+    'udisks2',
+    'rtkit-daemon',
+    'colord',
   ],
   macos: [
     'com.apple.audio.coreaudiod',
@@ -93,38 +80,26 @@ const IMPORTANT_SERVICES = {
   ],
 };
 
-/**
- * Detect platform based on service name patterns
- */
 function detectPlatform(serviceName: string, serviceId: string): 'windows' | 'linux' | 'macos' {
-  // macOS services typically use reverse domain notation
   if (serviceName.startsWith('com.apple.') || serviceId.includes('com.apple')) {
     return 'macos';
   }
   
-  // Linux systemd services often have .service suffix or specific naming
   if (serviceName.includes('systemd') || serviceId.endsWith('.service')) {
     return 'linux';
   }
   
-  // Default to Windows (or could be based on process.platform)
   return 'windows';
 }
 
-/**
- * Normalize service name for comparison
- */
 function normalizeServiceName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\.service$/, '')   // Remove .service suffix
-    .replace(/^com\.apple\./, '') // Remove com.apple. prefix
+    .replace(/\.service$/, '')
+    .replace(/^com\.apple\./, '')
     .trim();
 }
 
-/**
- * Get criticality information for a service
- */
 export function getServiceCriticality(
   serviceName: string,
   serviceId: string,
@@ -134,7 +109,6 @@ export function getServiceCriticality(
   const normalizedId = normalizeServiceName(serviceId);
   const platform = detectPlatform(serviceName, serviceId);
   
-  // Check if critical
   const isCritical = CRITICAL_SERVICES[platform].some(
     critical => 
       normalizedName.includes(critical.toLowerCase()) ||
@@ -149,7 +123,6 @@ export function getServiceCriticality(
     };
   }
   
-  // Check if important
   const isImportant = IMPORTANT_SERVICES[platform].some(
     important => 
       normalizedName.includes(important.toLowerCase()) ||
@@ -164,16 +137,12 @@ export function getServiceCriticality(
     };
   }
   
-  // Default to normal
   return {
     level: 'normal',
     description: 'Standard service',
   };
 }
 
-/**
- * Get criticality badge color classes
- */
 export function getCriticalityBadgeClasses(level: CriticalityLevel): string {
   switch (level) {
     case 'critical':
@@ -185,9 +154,6 @@ export function getCriticalityBadgeClasses(level: CriticalityLevel): string {
   }
 }
 
-/**
- * Get criticality icon
- */
 export function getCriticalityIcon(level: CriticalityLevel): string {
   switch (level) {
     case 'critical':

@@ -34,7 +34,6 @@ import { createBackup, listBackups, getBackup, deleteBackup } from './backups';
 
 const execAsync = promisify(exec);
 
-// RAM optimization: Configure Chromium flags for reduced memory usage
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
@@ -45,17 +44,11 @@ interface ServicesControlPayload {
   action: ServiceAction;
 }
 
-/**
- * Cache entry for service list
- */
 interface CacheEntry {
   data: ServiceInfo[];
   timestamp: number;
 }
 
-/**
- * Ordered cache implementation with LRU eviction and memory optimization
- */
 class OrderedCache<K, V> {
   private cache = new Map<K, V>();
   
@@ -66,12 +59,10 @@ class OrderedCache<K, V> {
   }
   
   set(key: K, value: V): void {
-    // If key exists, delete it first to update insertion order
     if (this.cache.has(key)) {
       this.cache.delete(key);
     }
     
-    // If at max size, remove oldest entry (first in Map)
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey !== undefined) {
@@ -86,7 +77,6 @@ class OrderedCache<K, V> {
     this.cache.clear();
   }
   
-  // RAM optimization: remove expired entries
   clearExpired(ttl: number): void {
     const now = Date.now();
     const keysToDelete: K[] = [];
@@ -106,29 +96,19 @@ class OrderedCache<K, V> {
   }
 }
 
-// Rate limiter for service control operations
 const controlRateLimiter = new RateLimiter(CONFIG.RATE_LIMIT.CONTROL_COOLDOWN_MS);
-
-// Circuit breaker for service operations
 const serviceCircuitBreaker = new CircuitBreaker(5, 60000);
-
-// Cache for service list with size limit
 const servicesCache = new OrderedCache<string, CacheEntry>(CONFIG.CACHE.MAX_SIZE);
 
 let mainWindow: BrowserWindow | null = null;
 let updateChecked = false;
 
-/**
- * Check if the application is running with elevated privileges
- */
 async function checkElevatedPrivileges(): Promise<boolean> {
   try {
     if (process.platform === 'win32') {
-      // On Windows, try to read a registry key that requires admin access
       const { stdout } = await execAsync('net session 2>&1');
       return !stdout.includes('Access is denied') && !stdout.includes('system error');
     } else if (process.platform === 'darwin' || process.platform === 'linux') {
-      // On Unix-like systems, check if running as root (UID 0)
       return process.getuid ? process.getuid() === 0 : false;
     }
   } catch (error) {
@@ -137,9 +117,6 @@ async function checkElevatedPrivileges(): Promise<boolean> {
   return false;
 }
 
-/**
- * Show a warning dialog if not running with elevated privileges
- */
 async function showPrivilegeWarning(): Promise<void> {
   const isElevated = await checkElevatedPrivileges();
   
@@ -188,9 +165,6 @@ async function showPrivilegeWarning(): Promise<void> {
   }
 }
 
-/**
- * Create the main application window
- */
 function createMainWindow(): void {
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, 'icon.png')
@@ -211,7 +185,6 @@ function createMainWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
-      // RAM optimization: reduce memory footprint
       backgroundThrottling: true,
       enablePreferredSizeMode: true,
     },
@@ -229,10 +202,7 @@ function createMainWindow(): void {
 
     if (!updateChecked && mainWindow) {
       updateChecked = true;
-      // Initialize auto-updater for packaged apps
       initializeAutoUpdater(mainWindow);
-      
-      // Check for npm updates after a short delay
       setTimeout(() => {
         void checkAndNotifyUpdates(mainWindow);
       }, 3000);
@@ -241,18 +211,13 @@ function createMainWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-    // Clear cache on window close
     servicesCache.clear();
-    // Force garbage collection if available (RAM optimization)
     if (global.gc) {
       global.gc();
     }
   });
 }
 
-/**
- * Check for updates and notify user if available
- */
 async function checkAndNotifyUpdates(window: BrowserWindow | null): Promise<void> {
   if (!window) return;
   
@@ -260,7 +225,6 @@ async function checkAndNotifyUpdates(window: BrowserWindow | null): Promise<void
     const updateInfo = await checkForUpdates();
     
     if (updateInfo.available && updateInfo.installMethod === 'npm') {
-      // For npm installs, send notification to renderer
       window.webContents.send('update:available-npm', updateInfo);
     }
   } catch (error) {
@@ -269,7 +233,6 @@ async function checkAndNotifyUpdates(window: BrowserWindow | null): Promise<void
 }
 
 app.whenReady().then(() => {
-  // Enhanced security settings
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -283,18 +246,14 @@ app.whenReady().then(() => {
     });
   });
 
-  // RAM optimization: clear expired cache entries periodically
   setInterval(() => {
-    // Clear only expired entries instead of entire cache
     servicesCache.clearExpired(CONFIG.CACHE.TTL_MS);
     
-    // Force GC if available and app has been idle
     if (global.gc && mainWindow && !mainWindow.isFocused()) {
       global.gc();
     }
-  }, 2 * 60 * 1000); // Every 2 minutes
+  }, 2 * 60 * 1000);
 
-  // Check for elevated privileges and show warning if needed
   void showPrivilegeWarning().then(() => {
     createMainWindow();
   });
@@ -310,43 +269,32 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-  // Clear cache and force GC on app close (RAM optimization)
   servicesCache.clear();
   if (global.gc) {
     global.gc();
   }
 });
 
-/**
- * Get cache key for service list
- */
 function getCacheKey(filters: ServiceListFilters): string {
   return JSON.stringify(filters);
 }
 
-/**
- * IPC Handler: List services
- */
 ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>> => {
   try {
-    // Validate payload
     if (payload && typeof payload !== 'object') {
       throw new Error('Invalid payload type');
     }
 
     const filters = payload ?? {};
 
-    // Validate search query length
     if (filters.search && filters.search.length > CONFIG.VALIDATION.MAX_SEARCH_LENGTH) {
       throw new Error(`Search query too long (max ${CONFIG.VALIDATION.MAX_SEARCH_LENGTH} characters)`);
     }
 
-    // Validate status filter
     if (filters.status && typeof filters.status !== 'string') {
       throw new Error('Invalid status filter');
     }
 
-    // Check cache if enabled
     if (CONFIG.CACHE.ENABLED) {
       const cacheKey = getCacheKey(filters);
       const cached = servicesCache.get(cacheKey);
@@ -356,7 +304,6 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
       }
     }
 
-    // Execute with timeout and retry
     const result = await serviceCircuitBreaker.execute(() =>
       withTimeout(
         () => withRetry(() => listServices(filters)),
@@ -365,7 +312,6 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
       )
     );
 
-    // Cache result (OrderedCache handles size management automatically)
     if (CONFIG.CACHE.ENABLED) {
       const cacheKey = getCacheKey(filters);
       servicesCache.set(cacheKey, { data: result, timestamp: Date.now() });
@@ -378,14 +324,10 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
   }
 });
 
-/**
- * IPC Handler: Control service
- */
 ipcMain.handle(
   'services:control',
   async (_event, payload?: ServicesControlPayload): Promise<IpcResponse<ServiceControlResult>> => {
     try {
-      // Validate payload structure
       if (!payload || typeof payload !== 'object') {
         throw new Error('Invalid payload structure');
       }
@@ -394,26 +336,21 @@ ipcMain.handle(
         throw new Error('Missing required fields: serviceId and action');
       }
 
-      // Validate service ID
       if (!isValidServiceId(payload.serviceId)) {
         throw new Error('Invalid service identifier');
       }
 
-      // Validate action
       if (!isValidServiceAction(payload.action)) {
         throw new Error('Invalid service action');
       }
 
-      // Rate limiting
       const rateLimitKey = `${payload.serviceId}:${payload.action}`;
       if (!controlRateLimiter.isAllowed(rateLimitKey)) {
         throw new Error('Rate limit exceeded. Please wait before retrying.');
       }
 
-      // Invalidate cache on control operations
       servicesCache.clear();
 
-      // Execute with timeout and circuit breaker
       const result = await serviceCircuitBreaker.execute(() =>
         withTimeout(
           () => controlService(payload.serviceId, payload.action),
@@ -422,7 +359,6 @@ ipcMain.handle(
         )
       );
 
-      // Audit log
       if (CONFIG.SECURITY.AUDIT_ENABLED) {
         console.log(`[AUDIT] Service control: ${payload.action} on ${payload.serviceId} at ${new Date().toISOString()}`);
       }
@@ -435,12 +371,8 @@ ipcMain.handle(
   }
 );
 
-/**
- * IPC Handler: Get service details
- */
 ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<IpcResponse<ServiceInfo | null>> => {
   try {
-    // Validate service ID
     if (!serviceId || typeof serviceId !== 'string') {
       throw new Error('Service identifier is required');
     }
@@ -449,7 +381,6 @@ ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<I
       throw new Error('Invalid service identifier');
     }
 
-    // Execute with timeout
     const result = await withTimeout(
       () => getServiceDetails(serviceId),
       CONFIG.PERFORMANCE.OPERATION_TIMEOUT_MS,
@@ -466,18 +397,15 @@ ipcMain.handle('services:details', async (_event, serviceId?: string): Promise<I
 ipcMain.on('app:openPath', (_event, targetPath: string | undefined) => {
   if (!targetPath || typeof targetPath !== 'string') return;
 
-  // Validate file path
   if (!isValidFilePath(targetPath)) {
     console.error('[SECURITY] Rejected invalid file path:', sanitizeErrorMessage(targetPath));
     return;
   }
 
-  // Additional platform-specific validation
   const isWindows = process.platform === 'win32';
   const isDarwin = process.platform === 'darwin';
   const isLinux = process.platform === 'linux';
 
-  // Whitelist allowed directories
   const allowedPrefixes: string[] = [];
   
   if (isWindows) {
@@ -488,7 +416,6 @@ ipcMain.on('app:openPath', (_event, targetPath: string | undefined) => {
     allowedPrefixes.push('/etc/systemd', '/lib/systemd', '/usr/lib/systemd');
   }
 
-  // Check if path starts with allowed prefix
   const isAllowed = allowedPrefixes.length === 0 || allowedPrefixes.some(prefix => 
     targetPath.startsWith(prefix)
   );
@@ -513,9 +440,6 @@ ipcMain.handle('app:showErrorDialog', async (_event, message?: unknown) => {
   });
 });
 
-/**
- * IPC Handler: Check for updates
- */
 ipcMain.handle('app:checkForUpdates', async (): Promise<IpcResponse<UpdateInfo>> => {
   try {
     const updateInfo = await checkForUpdates();
@@ -526,9 +450,6 @@ ipcMain.handle('app:checkForUpdates', async (): Promise<IpcResponse<UpdateInfo>>
   }
 });
 
-/**
- * IPC Handler: Perform manual update check with UI
- */
 ipcMain.handle('app:manualUpdateCheck', async (): Promise<IpcResponse<void>> => {
   try {
     if (!mainWindow) {
@@ -552,16 +473,10 @@ ipcMain.handle('app:applyPendingUpdate', async (): Promise<IpcResponse<boolean>>
   }
 });
 
-/**
- * IPC Handler: Get app version
- */
 ipcMain.handle('app:getVersion', async (): Promise<string> => {
   return app.getVersion();
 });
 
-/**
- * IPC Handler: Create backup
- */
 ipcMain.handle('backup:create', async (): Promise<IpcResponse<ServiceBackup>> => {
   try {
     const servicesResponse = await serviceCircuitBreaker.execute(() =>
@@ -585,9 +500,6 @@ ipcMain.handle('backup:create', async (): Promise<IpcResponse<ServiceBackup>> =>
   }
 });
 
-/**
- * IPC Handler: List backups
- */
 ipcMain.handle('backup:list', async (): Promise<IpcResponse<ServiceBackup[]>> => {
   try {
     const backups = listBackups();
@@ -598,9 +510,6 @@ ipcMain.handle('backup:list', async (): Promise<IpcResponse<ServiceBackup[]>> =>
   }
 });
 
-/**
- * IPC Handler: Get backup
- */
 ipcMain.handle('backup:get', async (_event, id?: string): Promise<IpcResponse<ServiceBackup | null>> => {
   try {
     if (!id || typeof id !== 'string') {
@@ -615,9 +524,6 @@ ipcMain.handle('backup:get', async (_event, id?: string): Promise<IpcResponse<Se
   }
 });
 
-/**
- * IPC Handler: Delete backup
- */
 ipcMain.handle('backup:delete', async (_event, id?: string): Promise<IpcResponse<boolean>> => {
   try {
     if (!id || typeof id !== 'string') {
@@ -637,9 +543,6 @@ ipcMain.handle('backup:delete', async (_event, id?: string): Promise<IpcResponse
   }
 });
 
-/**
- * IPC Handler: Restore backup
- */
 ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>> => {
   try {
     if (!id || typeof id !== 'string') {
@@ -651,7 +554,6 @@ ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcRespons
       throw new Error('Backup not found');
     }
 
-    // Check platform compatibility
     if (backup.platform !== process.platform) {
       throw new Error(`Backup is from ${backup.platform}, cannot restore on ${process.platform}`);
     }
@@ -660,7 +562,6 @@ ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcRespons
     let failed = 0;
     const errors: string[] = [];
 
-    // Get current service states
     const currentServices = await serviceCircuitBreaker.execute(() =>
       withTimeout(
         () => withRetry(() => listServices({})),
@@ -671,7 +572,6 @@ ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcRespons
 
     const currentServiceMap = new Map(currentServices.map(s => [s.id, s]));
 
-    // Restore each service from backup
     for (const backupService of backup.services) {
       const currentService = currentServiceMap.get(backupService.id);
       if (!currentService) {
@@ -718,9 +618,4 @@ ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcRespons
     return { ok: false, error: sanitizeError(error) };
   }
 });
-
-/**
- * Legacy error serialization - now handled by sanitizeError from errorHandler
- * Keeping this wrapper for backwards compatibility if needed
- */
 

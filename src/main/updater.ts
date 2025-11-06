@@ -1,8 +1,3 @@
-/**
- * Auto-update functionality for Service Manager
- * Handles both npm installations and packaged apps
- */
-
 import { app, dialog, BrowserWindow, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { exec } from 'node:child_process';
@@ -14,11 +9,8 @@ const execAsync = promisify(exec);
 let pendingUpdateVersion: string | null = null;
 let updateCheckInterval: NodeJS.Timeout | null = null;
 
-// Configure logging
 log.transports.file.level = 'info';
 autoUpdater.logger = log;
-
-// Configure autoUpdater
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowPrerelease = false;
@@ -33,13 +25,8 @@ export interface UpdateInfo {
   releaseNotes?: string;
 }
 
-/**
- * Detect how the application was installed
- */
 function detectInstallMethod(): 'npm' | 'packaged' | 'source' {
-  // Check if running as packaged app (electron-builder)
   if (app.isPackaged) {
-    // Check if installed via npm global
     const execPath = process.execPath;
     if (execPath.includes('node_modules') || execPath.includes('.npm')) {
       return 'npm';
@@ -49,16 +36,12 @@ function detectInstallMethod(): 'npm' | 'packaged' | 'source' {
   return 'source';
 }
 
-/**
- * Check for updates from npm registry
- */
 async function checkNpmUpdate(): Promise<{ latestVersion: string; available: boolean }> {
   try {
     const { stdout } = await execAsync('npm view @omnizs/service-manager version');
     const latestVersion = stdout.trim();
     const currentVersion = app.getVersion();
     
-    // Compare versions
     const available = compareVersions(latestVersion, currentVersion) > 0;
     
     return { latestVersion, available };
@@ -68,10 +51,6 @@ async function checkNpmUpdate(): Promise<{ latestVersion: string; available: boo
   }
 }
 
-/**
- * Compare semantic versions
- * Returns: 1 if a > b, -1 if a < b, 0 if equal
- */
 function compareVersions(a: string, b: string): number {
   const aParts = a.replace(/^v/, '').split('.').map(Number);
   const bParts = b.replace(/^v/, '').split('.').map(Number);
@@ -85,16 +64,12 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/**
- * Check for available updates
- */
 export async function checkForUpdates(): Promise<UpdateInfo> {
   const installMethod = detectInstallMethod();
   const currentVersion = app.getVersion();
   
   console.log(`[UPDATE] Checking for updates (install method: ${installMethod}, version: ${currentVersion})`);
   
-  // For npm installations, check npm registry
   if (installMethod === 'npm') {
     const { latestVersion, available } = await checkNpmUpdate();
     
@@ -107,7 +82,6 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
     };
   }
   
-  // For packaged apps, use electron-updater
   if (installMethod === 'packaged') {
     try {
       const updateCheckResult = await autoUpdater.checkForUpdatesAndNotify();
@@ -128,7 +102,6 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
     }
   }
   
-  // Source installations don't get auto-updates
   return {
     available: false,
     currentVersion,
@@ -136,9 +109,6 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
   };
 }
 
-/**
- * Initialize auto-updater for packaged apps
- */
 export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   const installMethod = detectInstallMethod();
   
@@ -150,19 +120,16 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   
   log.info('[UPDATE] Initializing auto-updater for packaged app');
   
-  // Not available
   autoUpdater.on('update-not-available', (info) => {
     log.info('[UPDATE] No update available. Current version:', app.getVersion());
     console.log('[UPDATE] No update available. Current version:', app.getVersion());
   });
   
-  // Checking for updates
   autoUpdater.on('checking-for-update', () => {
     log.info('[UPDATE] Checking for updates...');
     console.log('[UPDATE] Checking for updates...');
   });
   
-  // Update available
   autoUpdater.on('update-available', (info) => {
     log.info('[UPDATE] Update available:', info.version);
     console.log('[UPDATE] Update available:', info.version);
@@ -173,10 +140,9 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     });
   });
   
-  // Download progress
   autoUpdater.on('download-progress', (progress) => {
     const percentRounded = Math.round(progress.percent);
-    if (percentRounded % 10 === 0) { // Log every 10%
+    if (percentRounded % 10 === 0) {
       log.info(`[UPDATE] Download progress: ${percentRounded}%`);
     }
     mainWindow.webContents.send('update:progress', {
@@ -186,7 +152,6 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     });
   });
   
-  // Update downloaded
   autoUpdater.on('update-downloaded', (info) => {
     log.info('[UPDATE] Update downloaded:', info.version);
     console.log('[UPDATE] Update downloaded:', info.version);
@@ -211,7 +176,6 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     });
   });
   
-  // Error handling
   autoUpdater.on('error', (error) => {
     log.error('[UPDATE] Auto-updater error:', error);
     console.error('[UPDATE] Auto-updater error:', error);
@@ -226,7 +190,6 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     }
   });
 
-  // Check for updates on startup
   log.info('[UPDATE] Checking for updates on startup...');
   console.log('[UPDATE] Checking for updates on startup...');
   void autoUpdater.checkForUpdatesAndNotify().catch(error => {
@@ -234,8 +197,7 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     console.error('[UPDATE] Failed to check for updates:', error);
   });
   
-  // Schedule periodic update checks (every 4 hours)
-  const CHECK_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+  const CHECK_INTERVAL = 4 * 60 * 60 * 1000;
   updateCheckInterval = setInterval(() => {
     log.info('[UPDATE] Running scheduled update check...');
     console.log('[UPDATE] Running scheduled update check...');
@@ -245,7 +207,6 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
     });
   }, CHECK_INTERVAL);
   
-  // Clean up interval on app quit
   app.on('before-quit', () => {
     if (updateCheckInterval) {
       clearInterval(updateCheckInterval);
@@ -254,9 +215,6 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow): void {
   });
 }
 
-/**
- * Show update notification for npm installations
- */
 export function showNpmUpdateNotification(mainWindow: BrowserWindow, updateInfo: UpdateInfo): void {
   const message = `A new version of Service Manager is available!\n\n` +
     `Current version: ${updateInfo.currentVersion}\n` +
@@ -273,7 +231,6 @@ export function showNpmUpdateNotification(mainWindow: BrowserWindow, updateInfo:
     cancelId: 2,
   }).then(result => {
     if (result.response === 0) {
-      // Copy command to clipboard
       const { clipboard } = require('electron');
       clipboard.writeText(updateInfo.updateCommand || '');
       
@@ -284,15 +241,11 @@ export function showNpmUpdateNotification(mainWindow: BrowserWindow, updateInfo:
         buttons: ['OK'],
       });
     } else if (result.response === 1) {
-      // Open release page
       void shell.openExternal('https://github.com/omnizs/Service-Manager/releases/latest');
     }
   });
 }
 
-/**
- * Manual update check (called from menu or UI)
- */
 export async function performManualUpdateCheck(mainWindow: BrowserWindow): Promise<void> {
   const updateInfo = await checkForUpdates();
   
