@@ -30,14 +30,12 @@ const execFileAsync = promisify(execFile) as ExecFileAsync;
 const POWERSHELL = 'powershell.exe';
 const SUPPORTED_ACTIONS: ReadonlySet<ServiceAction> = new Set(['start', 'stop', 'restart', 'enable', 'disable']);
 
-// PowerShell execution options with proper encoding
 const PS_EXEC_OPTIONS = {
   maxBuffer: 1024 * 1024 * 8,
   windowsHide: true,
   encoding: 'utf8' as const,
   env: {
     ...process.env,
-    // Force PowerShell to use UTF-8 encoding
     LC_ALL: 'en_US.UTF-8',
     LANG: 'en_US.UTF-8',
   },
@@ -86,7 +84,6 @@ export async function controlService(
   serviceId: string,
   action: ServiceAction
 ): Promise<ServiceControlResult> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -107,7 +104,6 @@ export async function controlService(
       stderr,
     };
   } catch (error) {
-    // Provide friendly error messages for common Windows service errors
     if (error && typeof error === 'object' && 'stderr' in error) {
       const stderr = String((error as { stderr?: string | Buffer }).stderr || '');
       
@@ -132,7 +128,6 @@ export async function controlService(
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -223,18 +218,14 @@ function buildControlCommand(serviceId: string, action: ServiceAction): string {
 }
 
 function escapePSString(value: string): string {
-  // Escape single quotes (PowerShell string escaping)
   let escaped = value.replace(/'/g, "''");
   
-  // Additional escaping for PowerShell metacharacters
-  // Escape backticks, dollar signs, and other special characters
   escaped = escaped
-    .replace(/`/g, '``')     // Backtick escape character
-    .replace(/\$/g, '`$')    // Variable expansion
-    .replace(/\n/g, '`n')    // Newlines
-    .replace(/\r/g, '`r')    // Carriage returns
-    .replace(/\t/g, '`t');   // Tabs
+    .replace(/`/g, '``')
+    .replace(/\$/g, '`$')
+    .replace(/\n/g, '`n')
+    .replace(/\r/g, '`r')
+    .replace(/\t/g, '`t');
   
   return escaped;
 }
-

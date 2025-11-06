@@ -1,6 +1,6 @@
 {
   "name": "@omnizs/service-manager",
-  "version": "2.6.5",
+  "version": "2.7.0",
   "description": "Cross-platform graphical utility for managing system services on Linux, Windows, and macOS.",
   "main": "dist/main/main.js",
   "bin": {
@@ -157,14 +157,14 @@
     "@vitejs/plugin-react": "^5.1.0",
     "autoprefixer": "^10.4.20",
     "copyfiles": "^2.4.1",
-    "electron": "^39.0.0",
+    "electron": "^39.1.0",
     "electron-builder": "^26.0.12",
     "png-to-ico": "^3.0.0",
     "postcss": "^8.4.49",
     "rimraf": "^6.0.1",
-    "sharp": "^0.33.4",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.7.2",
-    "vite": "^7.1.12"
+    "vite": "^7.2.1"
   }
 }

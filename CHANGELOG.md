@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2025-11-10
+
+### Added
+
+- **Log Viewer Modal** powered by the new `logs:get` IPC handler
+  - Cross-platform log capture for systemd, launchd, and Windows Service Control Manager
+  - Configure the number of lines (50-1000) and refresh on demand
+  - Copy logs to clipboard or download as a text file straight from the UI
+  - Keyboard shortcut: `Ctrl/Cmd + L` to open the log viewer for the active service
+- **Favorite Services** via the new `useUserPreferences` hook
+  - Star any service to keep it pinned to the top of the list
+  - Favorite state persists locally across restarts thanks to localStorage backing
+  - Visual star toggle within the service table plus quick sorting of pinned items
+- **Service Export Utility** built on the `services:export` IPC
+  - Export filtered services as CSV, JSON, or Markdown from the new header dropdown
+  - Filenames include automatic timestamps for easy archival
+  - Inline toast feedback for success/failure
+
+### Changed
+
+- **Service Table Enhancements**
+  - Integrated favorite toggle and “View Logs” quick action into each row
+  - Favorites float to the top after filtering without reloading the dataset
+  - Row styling and widths adjusted for the new controls
+- **Header UI** received an export dropdown with outside-click dismissal handling
+
+### Technical
+
+- Added `src/main/logs.ts` for secure log retrieval with platform-aware fallbacks
+- Added `src/main/export.ts` for format-safe exporting and filename generation
+- Extended preload API (and `ServiceAPI` typings) to surface `getServiceLogs` and `exportServices`
+- Introduced `useUserPreferences` hook (favorites + notes scaffolding) in the renderer
+- Added `LogViewer` component with rich UX and download helpers
+
 ## [2.6.5] - 2025-11-06
 
 ### Added

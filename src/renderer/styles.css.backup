@@ -1,10 +1,8 @@
-/* ========================================
-   CSS Variables & Reset
-   ======================================== */
+
 :root {
   color-scheme: dark;
   
-  /* Minimalist Colors - Monochrome + One Accent */
+  
   --color-bg-primary: #0a0a0a;
   --color-bg-secondary: #000000;
   --color-bg-tertiary: #1a1a1a;
@@ -21,17 +19,17 @@
   --color-error: #ef4444;
   --color-warning: #f59e0b;
   
-  /* Spacing - Generous for Minimalism */
+  
   --spacing-xs: 8px;
   --spacing-sm: 12px;
   --spacing-md: 20px;
   --spacing-lg: 32px;
   --spacing-xl: 48px;
   
-  /* Border Radius - Minimal */
+  
   --radius: 2px;
   
-  /* Typography */
+  
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Monaco', 'Courier New', monospace;
   --font-size-base: 14px;
@@ -61,9 +59,7 @@ body {
   font-weight: 400;
 }
 
-/* ========================================
-   App Container
-   ======================================== */
+
 .app-container {
   display: flex;
   flex-direction: column;
@@ -71,9 +67,7 @@ body {
   overflow: hidden;
 }
 
-/* ========================================
-   Header
-   ======================================== */
+
 .app-header {
   background: var(--color-bg-primary);
   border-bottom: 1px solid var(--color-border);
@@ -126,7 +120,7 @@ body {
   font-weight: 400;
 }
 
-/* Essential animations only */
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -161,9 +155,7 @@ body {
   height: 14px;
 }
 
-/* ========================================
-   Main Layout
-   ======================================== */
+
 .app-main {
   flex: 1;
   overflow: hidden;
@@ -178,9 +170,7 @@ body {
   overflow: hidden;
 }
 
-/* ========================================
-   Services Panel
-   ======================================== */
+
 .services-panel {
   display: flex;
   flex-direction: column;
@@ -267,9 +257,7 @@ body {
   border-color: var(--color-text-tertiary);
 }
 
-/* ========================================
-   Table
-   ======================================== */
+
 .table-container {
   flex: 1;
   overflow: auto;
@@ -344,7 +332,7 @@ body {
   opacity: 0.5;
 }
 
-/* Virtual scrolling spacer */
+
 .virtual-spacer {
   pointer-events: none;
   background: transparent;
@@ -386,7 +374,7 @@ body {
   animation: spin 0.8s linear infinite;
 }
 
-/* Table Cell Styles */
+
 .cell-name {
   font-weight: 400;
   color: var(--color-text-primary);
@@ -404,7 +392,7 @@ dd.monospace {
   color: var(--color-text-tertiary);
 }
 
-/* Status Badges - Enhanced in v2.1.0 */
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -488,7 +476,7 @@ dd.monospace {
   }
 }
 
-/* Action Buttons - Enhanced in v2.1.0 */
+
 .cell-actions {
   display: flex;
   flex-wrap: wrap;
@@ -594,7 +582,7 @@ dd.monospace {
   background: rgba(245, 158, 11, 0.1);
 }
 
-/* Pagination */
+
 .pagination-row {
   background: transparent;
   border-top: 1px solid var(--color-border);
@@ -651,9 +639,7 @@ dd.monospace {
   text-align: center;
 }
 
-/* ========================================
-   Details Panel
-   ======================================== */
+
 .details-panel {
   display: flex;
   flex-direction: column;
@@ -768,9 +754,7 @@ dd.monospace {
   opacity: 0.7;
 }
 
-/* ========================================
-   Footer
-   ======================================== */
+
 .app-footer {
   background: var(--color-bg-primary);
   border-top: 1px solid var(--color-border);
@@ -809,9 +793,7 @@ dd.monospace {
   user-select: none;
 }
 
-/* ========================================
-   Toast Notifications - Enhanced in v2.1.0
-   ======================================== */
+
 .toast-container {
   position: fixed;
   bottom: var(--spacing-lg);
@@ -885,9 +867,7 @@ dd.monospace {
   background: var(--color-accent);
 }
 
-/* ========================================
-   Focus Indicators (Accessibility)
-   ======================================== */
+
 *:focus-visible {
   outline: 1px solid var(--color-text-primary);
   outline-offset: 2px;
@@ -900,9 +880,7 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-/* ========================================
-   Responsive Design
-   ======================================== */
+
 @media (max-width: 1280px) {
   .main-layout {
     grid-template-columns: 1fr;

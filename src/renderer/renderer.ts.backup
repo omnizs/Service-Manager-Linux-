@@ -92,15 +92,12 @@ function cacheDom(): void {
   dom.platformInfo = getElement<HTMLElement>('platformInfo');
   dom.performanceInfo = getElement<HTMLElement>('performanceInfo');
   
-  // Get table container for virtual scrolling
   const tableContainer = document.querySelector('.table-container');
   if (tableContainer) {
     dom.tableContainer = tableContainer as HTMLElement;
-    // Setup scroll listener for virtual scrolling
     dom.tableContainer.addEventListener('scroll', onTableScroll);
   }
   
-  // Set platform info
   const platform = navigator.platform || 'Unknown';
   const os = platform.includes('Win') ? 'Windows' : platform.includes('Mac') ? 'macOS' : 'Linux';
   dom.platformInfo.textContent = os;
@@ -115,7 +112,6 @@ function getElement<T extends HTMLElement>(id: string): T {
 }
 
 function bindEvents(): void {
-  // v2.1.0: Optimized debounce timing for better responsiveness
   const debouncedFilter = debounce(applyFilters, 120); // Reduced to 120ms for snappier UI
   dom.searchInput.addEventListener('input', debouncedFilter);
   dom.statusFilter.addEventListener('change', applyFilters);
@@ -124,13 +120,11 @@ function bindEvents(): void {
 
 function bindKeyboardShortcuts(): void {
   document.addEventListener('keydown', (event) => {
-    // Ctrl+R or Cmd+R to refresh
     if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
       event.preventDefault();
       void refreshServices({ showLoader: true });
     }
     
-    // Escape to clear selection
     if (event.key === 'Escape' && state.selectedId) {
       event.preventDefault();
       state.selectedId = null;
@@ -138,7 +132,6 @@ function bindKeyboardShortcuts(): void {
       renderDetails(null);
     }
     
-    // Ctrl+F or Cmd+F to focus search
     if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
       event.preventDefault();
       dom.searchInput.focus();
@@ -148,7 +141,6 @@ function bindKeyboardShortcuts(): void {
 }
 
 function bindWindowEvents(): void {
-  // Pause polling when window loses focus to save resources
   window.addEventListener('focus', () => {
     state.isWindowFocused = true;
     startPolling();
@@ -156,15 +148,12 @@ function bindWindowEvents(): void {
 
   window.addEventListener('blur', () => {
     state.isWindowFocused = false;
-    // Don't stop polling entirely, just let it continue at normal rate
   });
 
-  // Cleanup on beforeunload
   window.addEventListener('beforeunload', () => {
     stopPolling();
   });
 
-  // Handle visibility change (tab switching, window minimization)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       state.isWindowFocused = false;
@@ -177,7 +166,6 @@ function bindWindowEvents(): void {
 
 function startPolling(): void {
   stopPolling();
-  // v2.1.0: Smart polling - longer intervals when window is not focused
   const getPollingInterval = () => {
     return state.isWindowFocused && !document.hidden ? state.pollInterval : state.pollInterval * 3;
   };
@@ -186,7 +174,6 @@ function startPolling(): void {
     if (state.isWindowFocused && !document.hidden) {
       void refreshServices({ showLoader: false });
     }
-    // Dynamically adjust next poll interval
     state.pollTimer = setTimeout(poll, getPollingInterval());
   };
   
@@ -201,7 +188,6 @@ function stopPolling(): void {
 }
 
 async function refreshServices({ showLoader }: { showLoader: boolean }): Promise<void> {
-  // Prevent concurrent refreshes
   if (state.loading || state.isRefreshing) return;
 
   state.isRefreshing = true;
@@ -237,23 +223,18 @@ async function refreshServices({ showLoader }: { showLoader: boolean }): Promise
   }
 }
 
-/**
- * Scroll handler for virtual scrolling
- */
+
 function onTableScroll(): void {
   if (!state.virtualScrollEnabled) return;
   
   state.scrollTop = dom.tableContainer.scrollTop;
   
-  // Use requestAnimationFrame for smooth scrolling
   requestAnimationFrame(() => {
     renderTable();
   });
 }
 
-/**
- * Calculate visible range for virtual scrolling
- */
+
 function calculateVisibleRange(): { start: number; end: number; offsetY: number } {
   if (!state.virtualScrollEnabled) {
     return { start: 0, end: state.filtered.length, offsetY: 0 };
@@ -294,7 +275,6 @@ function applyFilters(): void {
 
   state.filtered = filtered;
   
-  // Enable virtual scrolling for large lists (500+ items)
   state.virtualScrollEnabled = filtered.length >= 500;
   
   state.currentPage = 1; // Reset to first page when filters change
@@ -318,7 +298,6 @@ function applyFilters(): void {
 }
 
 function renderTable(): void {
-  // Use DocumentFragment for better performance
   const fragment = document.createDocumentFragment();
 
   if (!state.filtered.length) {
@@ -334,20 +313,17 @@ function renderTable(): void {
     return;
   }
 
-  // Virtual scrolling for large lists or pagination for smaller ones
   let pageItems: ServiceInfo[];
   let startIndex: number;
   let endIndex: number;
   let totalPages = 1; // Initialize to avoid TypeScript errors
 
   if (state.virtualScrollEnabled) {
-    // Virtual scrolling mode
     const range = calculateVisibleRange();
     startIndex = range.start;
     endIndex = range.end;
     pageItems = state.filtered.slice(startIndex, endIndex);
     
-    // Create spacer rows for virtual scrolling
     if (range.offsetY > 0) {
       const spacerBefore = document.createElement('tr');
       spacerBefore.style.height = `${range.offsetY}px`;
@@ -358,14 +334,12 @@ function renderTable(): void {
       fragment.appendChild(spacerBefore);
     }
   } else {
-    // Pagination mode
     totalPages = Math.ceil(state.filtered.length / state.itemsPerPage);
     startIndex = (state.currentPage - 1) * state.itemsPerPage;
     endIndex = Math.min(startIndex + state.itemsPerPage, state.filtered.length);
     pageItems = state.filtered.slice(startIndex, endIndex);
   }
 
-  // Render visible rows using DocumentFragment
   pageItems.forEach((service, index) => {
     const row = document.createElement('tr');
     row.dataset.serviceId = service.id;
@@ -375,7 +349,6 @@ function renderTable(): void {
       row.classList.add('selected');
     }
 
-    // Use event delegation-friendly approach or bind here
     row.addEventListener('click', () => void selectService(service));
 
     row.appendChild(createCell(service.name, 'cell-name', false, service.name));
@@ -388,7 +361,6 @@ function renderTable(): void {
     fragment.appendChild(row);
   });
 
-  // Add spacer after for virtual scrolling
   if (state.virtualScrollEnabled) {
     const range = calculateVisibleRange();
     const remainingHeight = (state.filtered.length - range.end) * state.rowHeight;
@@ -403,11 +375,9 @@ function renderTable(): void {
     }
   }
 
-  // Clear and append in one operation
   dom.tableBody.innerHTML = '';
   dom.tableBody.appendChild(fragment);
 
-  // Show pagination info if there are multiple pages (only in pagination mode)
   if (!state.virtualScrollEnabled && totalPages > 1) {
     const paginationRow = document.createElement('tr');
     paginationRow.className = 'pagination-row';
@@ -465,7 +435,6 @@ function createCell(content: string, className = '', monospace = false, tooltip 
   const cell = document.createElement('td');
   if (className) cell.className = className;
   
-  // Add tooltip if content is provided and not just a dash
   if (tooltip && tooltip !== '—') {
     cell.title = tooltip;
   }
@@ -498,8 +467,6 @@ function normalizeStatus(status: string | undefined): string {
   if (!status) return 'unknown';
   const lower = status.toLowerCase();
   
-  // Map various status strings to normalized values
-  // Check inactive BEFORE active (since "inactive" contains "active")
   if (lower.includes('inactive') || lower.includes('dead') || lower.includes('stopped')) return 'inactive';
   if (lower.includes('active') || lower.includes('running')) return 'active';
   if (lower.includes('failed')) return 'failed';
@@ -512,10 +479,8 @@ function normalizeStatus(status: string | undefined): string {
 function formatStatusLabel(label: string): string {
   if (!label) return 'Unknown';
   
-  // Remove parenthetical descriptions like (dead), (running), etc.
   const cleaned = label.replace(/\s*\([^)]*\)/g, '').trim();
   
-  // Capitalize first letter
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
 }
 
@@ -711,10 +676,7 @@ async function handleAction(action: ServiceAction, service: ServiceInfo): Promis
   }
 }
 
-/**
- * Convert technical errors into user-friendly messages
- * Enhanced in v2.1.0
- */
+
 function getUserFriendlyErrorMessage(error: unknown, context: string): string {
   if (!(error instanceof Error)) {
     return `Unable to ${context}. Please try again.`;
@@ -722,22 +684,18 @@ function getUserFriendlyErrorMessage(error: unknown, context: string): string {
 
   const message = error.message.toLowerCase();
   
-  // Permission errors
   if (message.includes('permission') || message.includes('access denied') || message.includes('forbidden') || message.includes('eacces')) {
     return `⚠️ Permission denied. You may need administrator privileges to ${context}.`;
   }
   
-  // Timeout errors
   if (message.includes('timeout') || message.includes('timed out')) {
     return `⏱️ Operation timed out while trying to ${context}. The service may be unresponsive.`;
   }
   
-  // Not found errors
   if (message.includes('not found') || message.includes('does not exist') || message.includes('enoent')) {
     return `🔍 Service not found. It may have been removed or ${context} is unavailable.`;
   }
   
-  // Service-specific errors
   if (message.includes('already running') || message.includes('already active')) {
     return `ℹ️ Service is already running. No action needed.`;
   }
@@ -754,12 +712,10 @@ function getUserFriendlyErrorMessage(error: unknown, context: string): string {
     return `🌐 Connection error while trying to ${context}. Check your network connection.`;
   }
   
-  // Rate limiting
   if (message.includes('rate limit') || message.includes('too many requests')) {
     return `⏸️ Too many requests. Please wait a moment before trying to ${context} again.`;
   }
   
-  // Generic fallback with original message if it's short enough
   if (error.message.length < 100) {
     return `❌ Failed to ${context}: ${error.message}`;
   }
@@ -782,10 +738,8 @@ function debounce<T extends (...args: never[]) => void>(fn: T, wait: number): (.
   };
 }
 
-// Cleanup function to be called on unload
 function cleanup(): void {
   stopPolling();
-  // Clear any pending timeouts/intervals
   state.pollTimer = null;
 }
 
@@ -814,4 +768,3 @@ function showToast(message: string, type: ToastType = 'info'): void {
     }, 300);
   }, 3200);
 }
-
