@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import type { ServiceInfo } from '../../types/service';
+import HealthIndicator from './HealthIndicator';
 
 interface ServiceDetailsProps {
   service: ServiceInfo | null;
@@ -99,6 +100,8 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = memo(({ service }) => {
             </div>
           )}
         </dl>
+
+        <HealthIndicator serviceId={service.id} expectedStatus={service.status} />
       </div>
     </aside>
   );

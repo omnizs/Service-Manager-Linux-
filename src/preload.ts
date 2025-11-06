@@ -10,6 +10,10 @@ import type {
   UpdateInfo,
   UpdateProgress,
   ServiceBackup,
+  ServiceHealthStatus,
+  HealthCheckConfig,
+  HealthCheckEvent,
+  ServiceStatus,
 } from './types/service';
 
 const api: ServiceAPI = {
@@ -82,6 +86,21 @@ const api: ServiceAPI = {
     ipcRenderer.invoke('backup:delete', id) as Promise<IpcResponse<boolean>>,
   restoreBackup: (id: string) =>
     ipcRenderer.invoke('backup:restore', id) as Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>>,
+  getHealthStatus: (serviceId?: string) =>
+    ipcRenderer.invoke('health:getStatus', serviceId) as Promise<IpcResponse<ServiceHealthStatus[]>>,
+  startHealthMonitoring: (serviceId: string, expectedStatus?: ServiceStatus) =>
+    ipcRenderer.invoke('health:startMonitoring', { serviceId, expectedStatus }) as Promise<IpcResponse<boolean>>,
+  stopHealthMonitoring: (serviceId: string) =>
+    ipcRenderer.invoke('health:stopMonitoring', serviceId) as Promise<IpcResponse<boolean>>,
+  getHealthConfig: () =>
+    ipcRenderer.invoke('health:getConfig') as Promise<IpcResponse<HealthCheckConfig>>,
+  updateHealthConfig: (config: Partial<HealthCheckConfig>) =>
+    ipcRenderer.invoke('health:updateConfig', config) as Promise<IpcResponse<HealthCheckConfig>>,
+  onHealthEvent: (handler: (event: HealthCheckEvent) => void) => {
+    const listener = (_event: IpcRendererEvent, event: HealthCheckEvent) => handler(event);
+    ipcRenderer.on('health:event', listener);
+    return () => ipcRenderer.removeListener('health:event', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('serviceAPI', api);

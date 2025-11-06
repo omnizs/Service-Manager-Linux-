@@ -90,6 +90,40 @@ export interface ServiceBackup {
   totalServices: number;
 }
 
+export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+
+export interface HealthCheckEvent {
+  serviceId: string;
+  timestamp: number;
+  status: HealthStatus;
+  previousStatus?: HealthStatus;
+  consecutiveFailures: number;
+  message?: string;
+}
+
+export interface ServiceHealthStatus {
+  serviceId: string;
+  serviceName: string;
+  status: HealthStatus;
+  lastCheck: number;
+  uptime: number;
+  consecutiveFailures: number;
+  consecutiveSuccesses: number;
+  totalChecks: number;
+  failureCount: number;
+  successRate: number;
+  isMonitored: boolean;
+  expectedStatus?: ServiceStatus;
+}
+
+export interface HealthCheckConfig {
+  enabled: boolean;
+  interval: number;
+  failureThreshold: number;
+  autoRestart: boolean;
+  notifyOnFailure: boolean;
+}
+
 export interface ServiceAPI {
   listServices(filters?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>>;
   controlService(serviceId: string, action: ServiceAction): Promise<IpcResponse<ServiceControlResult>>;
@@ -110,6 +144,12 @@ export interface ServiceAPI {
   getBackup(id: string): Promise<IpcResponse<ServiceBackup | null>>;
   deleteBackup(id: string): Promise<IpcResponse<boolean>>;
   restoreBackup(id: string): Promise<IpcResponse<{ success: number; failed: number; errors: string[] }>>;
+  getHealthStatus(serviceId?: string): Promise<IpcResponse<ServiceHealthStatus[]>>;
+  startHealthMonitoring(serviceId: string, expectedStatus?: ServiceStatus): Promise<IpcResponse<boolean>>;
+  stopHealthMonitoring(serviceId: string): Promise<IpcResponse<boolean>>;
+  getHealthConfig(): Promise<IpcResponse<HealthCheckConfig>>;
+  updateHealthConfig(config: Partial<HealthCheckConfig>): Promise<IpcResponse<HealthCheckConfig>>;
+  onHealthEvent(handler: (event: HealthCheckEvent) => void): () => void;
 }
 
 declare global {

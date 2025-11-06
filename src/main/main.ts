@@ -14,6 +14,9 @@ import type {
   ServiceInfo,
   ServiceListFilters,
   ServiceBackup,
+  ServiceHealthStatus,
+  HealthCheckConfig,
+  ServiceStatus,
 } from '../types/service';
 import {
   isValidServiceId,
@@ -31,6 +34,7 @@ import {
 import { CONFIG } from './config';
 import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, applyPendingUpdate, type UpdateInfo } from './updater';
 import { createBackup, listBackups, getBackup, deleteBackup } from './backups';
+import { healthCheckManager } from './healthCheck';
 
 const execAsync = promisify(exec);
 
@@ -243,11 +247,16 @@ function createMainWindow(): void {
     mainWindow = null;
     // Clear cache on window close
     servicesCache.clear();
+    // Cleanup health check manager
+    healthCheckManager.setMainWindow(null);
     // Force garbage collection if available (RAM optimization)
     if (global.gc) {
       global.gc();
     }
   });
+  
+  // Set main window for health check manager
+  healthCheckManager.setMainWindow(mainWindow);
 }
 
 /**
@@ -312,6 +321,7 @@ app.on('window-all-closed', () => {
   }
   // Clear cache and force GC on app close (RAM optimization)
   servicesCache.clear();
+  healthCheckManager.cleanup();
   if (global.gc) {
     global.gc();
   }
@@ -715,6 +725,131 @@ ipcMain.handle('backup:restore', async (_event, id?: string): Promise<IpcRespons
     return { ok: true, data: { success, failed, errors } };
   } catch (error) {
     console.error('[ERROR] backup:restore failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Get health status
+ */
+ipcMain.handle('health:getStatus', async (_event, serviceId?: string): Promise<IpcResponse<ServiceHealthStatus[]>> => {
+  try {
+    if (serviceId && typeof serviceId !== 'string') {
+      throw new Error('Invalid service ID type');
+    }
+
+    if (serviceId && !isValidServiceId(serviceId)) {
+      throw new Error('Invalid service identifier');
+    }
+
+    const status = healthCheckManager.getHealthStatus(serviceId);
+    return { ok: true, data: status };
+  } catch (error) {
+    console.error('[ERROR] health:getStatus failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Start health monitoring
+ */
+ipcMain.handle('health:startMonitoring', async (_event, payload?: { serviceId: string; expectedStatus?: ServiceStatus }): Promise<IpcResponse<boolean>> => {
+  try {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid payload structure');
+    }
+
+    const { serviceId, expectedStatus } = payload;
+
+    if (!serviceId || typeof serviceId !== 'string') {
+      throw new Error('Service identifier is required');
+    }
+
+    if (!isValidServiceId(serviceId)) {
+      throw new Error('Invalid service identifier');
+    }
+
+    const serviceDetails = await getServiceDetails(serviceId);
+    const serviceName = serviceDetails?.name || serviceId;
+
+    const result = healthCheckManager.startServiceMonitoring(serviceId, serviceName, expectedStatus);
+    
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Started health monitoring for ${serviceId} at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error('[ERROR] health:startMonitoring failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Stop health monitoring
+ */
+ipcMain.handle('health:stopMonitoring', async (_event, serviceId?: string): Promise<IpcResponse<boolean>> => {
+  try {
+    if (!serviceId || typeof serviceId !== 'string') {
+      throw new Error('Service identifier is required');
+    }
+
+    if (!isValidServiceId(serviceId)) {
+      throw new Error('Invalid service identifier');
+    }
+
+    const result = healthCheckManager.stopServiceMonitoring(serviceId);
+    
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Stopped health monitoring for ${serviceId} at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error('[ERROR] health:stopMonitoring failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Get health check config
+ */
+ipcMain.handle('health:getConfig', async (): Promise<IpcResponse<HealthCheckConfig>> => {
+  try {
+    const config = healthCheckManager.getConfig();
+    return { ok: true, data: config };
+  } catch (error) {
+    console.error('[ERROR] health:getConfig failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Update health check config
+ */
+ipcMain.handle('health:updateConfig', async (_event, payload?: Partial<HealthCheckConfig>): Promise<IpcResponse<HealthCheckConfig>> => {
+  try {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid payload structure');
+    }
+
+    if (payload.interval !== undefined && (typeof payload.interval !== 'number' || payload.interval < 5000)) {
+      throw new Error('Invalid interval: must be at least 5000ms');
+    }
+
+    if (payload.failureThreshold !== undefined && (typeof payload.failureThreshold !== 'number' || payload.failureThreshold < 1)) {
+      throw new Error('Invalid failure threshold: must be at least 1');
+    }
+
+    const config = healthCheckManager.updateConfig(payload);
+    
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Updated health check config at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: config };
+  } catch (error) {
+    console.error('[ERROR] health:updateConfig failed:', error);
     return { ok: false, error: sanitizeError(error) };
   }
 });
