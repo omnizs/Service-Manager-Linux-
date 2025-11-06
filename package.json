@@ -130,7 +130,9 @@
           ]
         }
       ],
-      "icon": "resources/icon.ico"
+      "icon": "resources/icon.ico",
+      "sign": null,
+      "signingHashAlgorithms": ["sha256"]
     },
     "nsis": {
       "oneClick": false,
