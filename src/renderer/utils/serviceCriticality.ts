@@ -67,7 +67,6 @@ const IMPORTANT_SERVICES = {
     'cups',
     'avahi-daemon',
     'accounts-daemon',
-    'bluetooth',
     'polkit',
     'udisks2',
     'rtkit-daemon',

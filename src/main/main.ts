@@ -275,9 +275,33 @@ app.on('window-all-closed', () => {
   }
 });
 
-function getCacheKey(filters: ServiceListFilters): string {
-  return JSON.stringify(filters);
-}
+const getCacheKey = (filters: ServiceListFilters): string => JSON.stringify(filters);
+
+const validateFilters = (filters: ServiceListFilters): void => {
+  if (filters.search && filters.search.length > CONFIG.VALIDATION.MAX_SEARCH_LENGTH) {
+    throw new Error(`Search query too long (max ${CONFIG.VALIDATION.MAX_SEARCH_LENGTH} characters)`);
+  }
+
+  if (filters.status && typeof filters.status !== 'string') {
+    throw new Error('Invalid status filter');
+  }
+};
+
+const getCachedServices = (cacheKey: string): ServiceInfo[] | null => {
+  if (!CONFIG.CACHE.ENABLED) return null;
+  
+  const cached = servicesCache.get(cacheKey);
+  if (!cached) return null;
+  
+  const isFresh = Date.now() - cached.timestamp < CONFIG.CACHE.TTL_MS;
+  return isFresh ? cached.data : null;
+};
+
+const setCachedServices = (cacheKey: string, data: ServiceInfo[]): void => {
+  if (CONFIG.CACHE.ENABLED) {
+    servicesCache.set(cacheKey, { data, timestamp: Date.now() });
+  }
+};
 
 ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>> => {
   try {
@@ -286,22 +310,13 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
     }
 
     const filters = payload ?? {};
+    validateFilters(filters);
 
-    if (filters.search && filters.search.length > CONFIG.VALIDATION.MAX_SEARCH_LENGTH) {
-      throw new Error(`Search query too long (max ${CONFIG.VALIDATION.MAX_SEARCH_LENGTH} characters)`);
-    }
-
-    if (filters.status && typeof filters.status !== 'string') {
-      throw new Error('Invalid status filter');
-    }
-
-    if (CONFIG.CACHE.ENABLED) {
-      const cacheKey = getCacheKey(filters);
-      const cached = servicesCache.get(cacheKey);
-      
-      if (cached && Date.now() - cached.timestamp < CONFIG.CACHE.TTL_MS) {
-        return { ok: true, data: cached.data };
-      }
+    const cacheKey = getCacheKey(filters);
+    const cached = getCachedServices(cacheKey);
+    
+    if (cached) {
+      return { ok: true, data: cached };
     }
 
     const result = await serviceCircuitBreaker.execute(() =>
@@ -312,10 +327,7 @@ ipcMain.handle('services:list', async (_event, payload?: ServiceListFilters): Pr
       )
     );
 
-    if (CONFIG.CACHE.ENABLED) {
-      const cacheKey = getCacheKey(filters);
-      servicesCache.set(cacheKey, { data: result, timestamp: Date.now() });
-    }
+    setCachedServices(cacheKey, result);
 
     return { ok: true, data: result };
   } catch (error) {
