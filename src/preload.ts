@@ -14,6 +14,9 @@ import type {
   HealthCheckConfig,
   HealthCheckEvent,
   ServiceStatus,
+  ServiceLogs,
+  ExportFormat,
+  ExportResult,
 } from './types/service';
 
 const api: ServiceAPI = {
@@ -101,6 +104,10 @@ const api: ServiceAPI = {
     ipcRenderer.on('health:event', listener);
     return () => ipcRenderer.removeListener('health:event', listener);
   },
+  getServiceLogs: (serviceId: string, lines?: number) =>
+    ipcRenderer.invoke('logs:get', { serviceId, lines }) as Promise<IpcResponse<ServiceLogs>>,
+  exportServices: (format: ExportFormat, services: ServiceInfo[]) =>
+    ipcRenderer.invoke('services:export', { format, services }) as Promise<IpcResponse<ExportResult>>,
 };
 
 contextBridge.exposeInMainWorld('serviceAPI', api);

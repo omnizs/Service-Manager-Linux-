@@ -17,6 +17,9 @@ import type {
   ServiceHealthStatus,
   HealthCheckConfig,
   ServiceStatus,
+  ServiceLogs,
+  ExportFormat,
+  ExportResult,
 } from '../types/service';
 import {
   isValidServiceId,
@@ -35,6 +38,8 @@ import { CONFIG } from './config';
 import { initializeAutoUpdater, performManualUpdateCheck, checkForUpdates, applyPendingUpdate, type UpdateInfo } from './updater';
 import { createBackup, listBackups, getBackup, deleteBackup } from './backups';
 import { healthCheckManager } from './healthCheck';
+import { getServiceLogs } from './logs';
+import { exportServices } from './export';
 
 const execAsync = promisify(exec);
 
@@ -763,6 +768,81 @@ ipcMain.handle('health:updateConfig', async (_event, payload?: Partial<HealthChe
     return { ok: true, data: config };
   } catch (error) {
     console.error('[ERROR] health:updateConfig failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Get service logs
+ */
+ipcMain.handle('logs:get', async (_event, payload?: { serviceId: string; lines?: number }): Promise<IpcResponse<ServiceLogs>> => {
+  try {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid payload structure');
+    }
+
+    if (!payload.serviceId || typeof payload.serviceId !== 'string') {
+      throw new Error('Service identifier is required');
+    }
+
+    if (!isValidServiceId(payload.serviceId)) {
+      throw new Error('Invalid service identifier');
+    }
+
+    const lines = payload.lines && typeof payload.lines === 'number' ? Math.min(payload.lines, 10000) : 100;
+    
+    const serviceDetails = await getServiceDetails(payload.serviceId);
+    if (!serviceDetails) {
+      throw new Error('Service not found');
+    }
+
+    const logs = await withTimeout(
+      () => getServiceLogs(payload.serviceId, serviceDetails.name, serviceDetails.provider, lines),
+      15000,
+      'Log retrieval timed out'
+    );
+
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Retrieved logs for ${payload.serviceId} at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: logs };
+  } catch (error) {
+    console.error('[ERROR] logs:get failed:', error);
+    return { ok: false, error: sanitizeError(error) };
+  }
+});
+
+/**
+ * IPC Handler: Export services
+ */
+ipcMain.handle('services:export', async (_event, payload?: { format: ExportFormat; services: ServiceInfo[] }): Promise<IpcResponse<ExportResult>> => {
+  try {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid payload structure');
+    }
+
+    if (!payload.format || !['csv', 'json', 'markdown'].includes(payload.format)) {
+      throw new Error('Invalid export format');
+    }
+
+    if (!Array.isArray(payload.services)) {
+      throw new Error('Services must be an array');
+    }
+
+    if (payload.services.length > 10000) {
+      throw new Error('Too many services to export (max 10000)');
+    }
+
+    const result = await exportServices(payload.format, payload.services);
+
+    if (CONFIG.SECURITY.AUDIT_ENABLED) {
+      console.log(`[AUDIT] Exported ${payload.services.length} services as ${payload.format} at ${new Date().toISOString()}`);
+    }
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error('[ERROR] services:export failed:', error);
     return { ok: false, error: sanitizeError(error) };
   }
 });

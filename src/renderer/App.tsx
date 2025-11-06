@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { ServiceInfo } from '../types/service';
+import type { ServiceInfo, ExportFormat } from '../types/service';
 import ServiceTable from './components/ServiceTable';
 import ServiceDetails from './components/ServiceDetails';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Settings from './components/Settings';
 import BackupManager from './components/BackupManager';
+import LogViewer from './components/LogViewer';
 import Toast, { useToast } from './components/Toast';
 import { UpdateNotification } from './components/UpdateNotification';
 import { useSettings } from './hooks/useSettings';
+import { useUserPreferences } from './hooks/useUserPreferences';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
 
 const App: React.FC = () => {
@@ -25,9 +27,12 @@ const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backupsOpen, setBackupsOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [selectedForLogs, setSelectedForLogs] = useState<{ id: string; name: string } | null>(null);
   
   const { toasts, addToast, removeToast } = useToast();
   const { settings, updateSettings } = useSettings();
+  const { favorites, isFavorite, toggleFavorite, getNote, setNote, deleteNote } = useUserPreferences();
 
   const platform = navigator.platform || 'Unknown';
   const os = platform.includes('Win') ? 'Windows' : platform.includes('Mac') ? 'macOS' : 'Linux';
@@ -63,7 +68,8 @@ const App: React.FC = () => {
         throw new Error(message);
       }
 
-      setServices(Array.isArray(response.data) ? response.data : []);
+      const serviceList = Array.isArray(response.data) ? response.data : [];
+      setServices(serviceList);
       setLastUpdated(new Date());
       
       const endTime = performance.now();
@@ -79,50 +85,75 @@ const App: React.FC = () => {
     }
   }, [loading, isRefreshing, addToast]);
 
+  const executeServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
+    if (!window.serviceAPI) {
+      return { success: false, error: 'Service API not available' };
+    }
+
+    try {
+      const response = await window.serviceAPI.controlService(serviceId, action as any);
+      if (!response || !response.ok) {
+        const message = response?.error?.message ?? 'Action failed';
+        throw new Error(message);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error(`Failed to ${action} service`, error);
+      const friendlyMessage = getUserFriendlyErrorMessage(error, `${action} ${serviceName}`);
+      return { success: false, error: friendlyMessage };
+    }
+  }, []);
+
   const filteredServices = React.useMemo(() => {
     const search = debouncedSearchQuery.trim().toLowerCase();
     const hasSearchQuery = search.length > 0;
     const hasStatusFilter = statusFilter !== 'all';
 
-    if (!hasSearchQuery && !hasStatusFilter) {
-      return services;
+    let filtered = services;
+
+    if (hasSearchQuery || hasStatusFilter) {
+      filtered = services.filter((item) => {
+        if (hasStatusFilter) {
+          const status = (item.status || '').toLowerCase();
+          
+          if (statusFilter === 'running') {
+            if (!status.includes('active') && !status.includes('running') && !status.includes('started')) {
+              return false;
+            }
+          } else if (statusFilter === 'stopped') {
+            if (!status.includes('inactive') && !status.includes('stopped') && !status.includes('dead')) {
+              return false;
+            }
+          }
+        }
+
+        if (hasSearchQuery) {
+          const name = item.name.toLowerCase();
+          if (name.includes(search)) return true;
+          
+          if (item.description) {
+            const desc = item.description.toLowerCase();
+            if (desc.includes(search)) return true;
+          }
+          
+          if (item.executable) {
+            const exec = item.executable.toLowerCase();
+            if (exec.includes(search)) return true;
+          }
+          
+          return false;
+        }
+
+        return true;
+      });
     }
 
-    return services.filter((item) => {
-      if (hasStatusFilter) {
-        const status = (item.status || '').toLowerCase();
-        
-        if (statusFilter === 'running') {
-          if (!status.includes('active') && !status.includes('running') && !status.includes('started')) {
-            return false;
-          }
-        } else if (statusFilter === 'stopped') {
-          if (!status.includes('inactive') && !status.includes('stopped') && !status.includes('dead')) {
-            return false;
-          }
-        }
-      }
-
-      if (hasSearchQuery) {
-        const name = item.name.toLowerCase();
-        if (name.includes(search)) return true;
-        
-        if (item.description) {
-          const desc = item.description.toLowerCase();
-          if (desc.includes(search)) return true;
-        }
-        
-        if (item.executable) {
-          const exec = item.executable.toLowerCase();
-          if (exec.includes(search)) return true;
-        }
-        
-        return false;
-      }
-
-      return true;
-    });
-  }, [services, debouncedSearchQuery, statusFilter]);
+    const favoritesList = Array.from(favorites);
+    const favoriteServices = filtered.filter(s => favoritesList.includes(s.id));
+    const nonFavoriteServices = filtered.filter(s => !favoritesList.includes(s.id));
+    
+    return [...favoriteServices, ...nonFavoriteServices];
+  }, [services, debouncedSearchQuery, statusFilter, favorites]);
 
   useEffect(() => {
     if (selectedService && !filteredServices.find(s => s.id === selectedService.id)) {
@@ -154,25 +185,62 @@ const App: React.FC = () => {
   }, []);
 
   const handleServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
+    const result = await executeServiceAction(serviceId, action, serviceName);
+    if (result.success) {
+      addToast(`✓ ${action.charAt(0).toUpperCase() + action.slice(1)} requested for ${serviceName}`, 'success');
+      await refreshServices(false);
+    } else {
+      addToast(result.error || 'Action failed', 'error');
+    }
+  }, [executeServiceAction, addToast, refreshServices]);
+
+  const handleExport = useCallback(async (format: ExportFormat) => {
     if (!window.serviceAPI) {
       addToast('Service API not available', 'error');
       return;
     }
-    
+
     try {
-      const response = await window.serviceAPI.controlService(serviceId, action as any);
-      if (!response || !response.ok) {
-        const message = response?.error?.message ?? 'Action failed';
+      const response = await window.serviceAPI.exportServices(format, filteredServices);
+      if (!response || !response.ok || !response.data) {
+        const message = response?.error?.message ?? 'Export failed';
         throw new Error(message);
       }
-      addToast(`✓ ${action.charAt(0).toUpperCase() + action.slice(1)} requested for ${serviceName}`, 'success');
-      await refreshServices(false);
+
+      const { content, filename } = response.data;
+      const blob = new Blob([content], {
+        type: format === 'json' ? 'application/json' : 'text/plain',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast(`✓ Exported ${filteredServices.length} services as ${format.toUpperCase()}`, 'success');
     } catch (error) {
-      console.error(`Failed to ${action} service`, error);
-      const friendlyMessage = getUserFriendlyErrorMessage(error, `${action} ${serviceName}`);
+      console.error('Failed to export services', error);
+      const friendlyMessage = getUserFriendlyErrorMessage(error, 'export services');
       addToast(friendlyMessage, 'error');
     }
-  }, [addToast, refreshServices]);
+  }, [filteredServices, addToast]);
+
+  const handleViewLogs = useCallback((serviceId: string, serviceName: string) => {
+    setSelectedForLogs({ id: serviceId, name: serviceName });
+    setLogsOpen(true);
+  }, []);
+
+  const handleToggleFavorite = useCallback((serviceId: string) => {
+    toggleFavorite(serviceId);
+  }, [toggleFavorite]);
+
+  const handleCloseLogs = useCallback(() => {
+    setLogsOpen(false);
+    setSelectedForLogs(null);
+  }, []);
 
   useEffect(() => {
     refreshServices(true);
@@ -266,11 +334,18 @@ const App: React.FC = () => {
         event.preventDefault();
         document.getElementById('searchInput')?.focus();
       }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === 'l') {
+        event.preventDefault();
+        if (selectedService) {
+          handleViewLogs(selectedService.id, selectedService.name);
+        }
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [refreshServices, selectedService, settingsOpen, backupsOpen]);
+  }, [refreshServices, selectedService, settingsOpen, backupsOpen, handleViewLogs]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
@@ -281,6 +356,7 @@ const App: React.FC = () => {
         onRefresh={() => refreshServices(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenBackups={() => setBackupsOpen(true)}
+        onExport={handleExport}
       />
 
       <main className="flex-1 flex overflow-hidden">
@@ -295,6 +371,9 @@ const App: React.FC = () => {
             onStatusFilterChange={setStatusFilter}
             onServiceSelect={handleServiceSelect}
             onServiceAction={handleServiceAction}
+            onToggleFavorite={handleToggleFavorite}
+            onViewLogs={handleViewLogs}
+            isFavorite={isFavorite}
           />
 
           <ServiceDetails
@@ -326,6 +405,15 @@ const App: React.FC = () => {
         onClose={() => setBackupsOpen(false)}
         onBackupCreated={() => refreshServices(false)}
       />
+
+      {selectedForLogs && (
+        <LogViewer
+          serviceId={selectedForLogs.id}
+          serviceName={selectedForLogs.name}
+          isOpen={logsOpen}
+          onClose={handleCloseLogs}
+        />
+      )}
 
       <Toast toasts={toasts} onRemove={removeToast} />
       <UpdateNotification />

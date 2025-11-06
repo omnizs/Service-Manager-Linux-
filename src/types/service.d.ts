@@ -124,6 +124,35 @@ export interface HealthCheckConfig {
   notifyOnFailure: boolean;
 }
 
+export interface ServiceLogs {
+  serviceId: string;
+  serviceName: string;
+  logs: string;
+  lines: number;
+  timestamp: number;
+}
+
+export type ExportFormat = 'csv' | 'json' | 'markdown';
+
+export interface ExportResult {
+  format: ExportFormat;
+  content: string;
+  filename: string;
+}
+
+export interface ServiceNote {
+  serviceId: string;
+  note: string;
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface UserPreferences {
+  favorites: string[];
+  notes: Record<string, ServiceNote>;
+}
+
 export interface ServiceAPI {
   listServices(filters?: ServiceListFilters): Promise<IpcResponse<ServiceInfo[]>>;
   controlService(serviceId: string, action: ServiceAction): Promise<IpcResponse<ServiceControlResult>>;
@@ -150,6 +179,8 @@ export interface ServiceAPI {
   getHealthConfig(): Promise<IpcResponse<HealthCheckConfig>>;
   updateHealthConfig(config: Partial<HealthCheckConfig>): Promise<IpcResponse<HealthCheckConfig>>;
   onHealthEvent(handler: (event: HealthCheckEvent) => void): () => void;
+  getServiceLogs(serviceId: string, lines?: number): Promise<IpcResponse<ServiceLogs>>;
+  exportServices(format: ExportFormat, services: ServiceInfo[]): Promise<IpcResponse<ExportResult>>;
 }
 
 declare global {
