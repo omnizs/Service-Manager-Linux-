@@ -14,23 +14,19 @@ interface ToastProps {
   onRemove: (id: string) => void;
 }
 
-// React 19 optimization: Memoized toast hook with queue management
 export const useToast = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const timerRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Optimized toast addition with queue limit
   const addToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const timestamp = Date.now();
     
     setToasts(prev => {
-      // Limit toast queue to 5 items
       const updated = [...prev, { id, message, type, timestamp }];
       return updated.slice(-5);
     });
 
-    // Auto-remove with cleanup tracking
     const timer = setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
       timerRefs.current.delete(id);
@@ -39,11 +35,9 @@ export const useToast = () => {
     timerRefs.current.set(id, timer);
   }, []);
 
-  // Optimized manual removal
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
     
-    // Clear associated timer
     const timer = timerRefs.current.get(id);
     if (timer) {
       clearTimeout(timer);
@@ -51,7 +45,6 @@ export const useToast = () => {
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       timerRefs.current.forEach(timer => clearTimeout(timer));
@@ -62,7 +55,6 @@ export const useToast = () => {
   return { toasts, addToast, removeToast };
 };
 
-// Memoized individual toast component for better performance
 const ToastItem = React.memo<{ toast: ToastMessage; onRemove: (id: string) => void }>(
   ({ toast, onRemove }) => {
     const typeStyles: Record<ToastType, string> = {

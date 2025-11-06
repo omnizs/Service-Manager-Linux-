@@ -17,7 +17,6 @@ interface ServiceTableProps {
   onServiceAction: (serviceId: string, action: string, serviceName: string) => void;
 }
 
-// RAM optimization: reduce page size to lower memory usage
 const ITEMS_PER_PAGE = 50;
 
 const ServiceTable: React.FC<ServiceTableProps> = memo(({
@@ -38,7 +37,6 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
   const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, services.length);
   const pageServices = services.slice(startIndex, endIndex);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter]);

@@ -9,7 +9,6 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = memo(({ isOpen, onClose, settings, onUpdateSettings }) => {
-  // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
 

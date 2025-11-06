@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 export interface Settings {
   theme: 'light' | 'dark';
   autoUpdate: boolean;
-  updateInterval: number; // in minutes
+  updateInterval: number;
 }
 
 const getPreferredTheme = (): 'light' | 'dark' => {
@@ -17,7 +17,6 @@ const sanitizeTheme = (theme: unknown): 'light' | 'dark' => {
   return theme === 'light' ? 'light' : 'dark';
 };
 
-// RAM optimization: reduce default auto-refresh frequency
 const DEFAULT_SETTINGS: Settings = {
   theme: getPreferredTheme(),
   autoUpdate: true,
@@ -26,7 +25,6 @@ const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = 'service-manager-settings';
 
-// Helper function to load settings from localStorage
 const loadSettings = (): Settings => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -43,10 +41,8 @@ const loadSettings = (): Settings => {
 };
 
 export const useSettings = () => {
-  // React 19 optimization: Lazy initialization
   const [settings, setSettings] = useState<Settings>(loadSettings);
 
-  // Apply theme on mount and when it changes
   useEffect(() => {
     const root = document.documentElement;
     const body = document.body;
@@ -57,7 +53,6 @@ export const useSettings = () => {
     body.style.colorScheme = isDark ? 'dark' : 'light';
   }, [settings.theme]);
 
-  // Save settings to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -66,7 +61,6 @@ export const useSettings = () => {
     }
   }, [settings]);
 
-  // Cross-tab synchronization
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
@@ -85,7 +79,6 @@ export const useSettings = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Memoized update function - React 19 optimization
   const updateSettings = useCallback((partial: Partial<Settings>) => {
     setSettings(prev => {
       const next = { ...prev, ...partial } as Settings;
@@ -96,7 +89,6 @@ export const useSettings = () => {
     });
   }, []);
 
-  // Memoized reset function - React 19 optimization
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
   }, []);
