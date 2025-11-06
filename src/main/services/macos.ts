@@ -64,7 +64,7 @@ export async function listServices({ search, status }: ServiceListFilters = {}):
         canDisable: isEnabled,
       } satisfies LaunchdService;
     },
-    (service) => service // Fallback: return original service if metadata fetch fails
+    (service) => service
   );
 
   let filtered = servicesWithMetadata;
@@ -90,7 +90,6 @@ export async function controlService(
   serviceId: string,
   action: ServiceAction
 ): Promise<ServiceControlResult> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -111,7 +110,6 @@ export async function controlService(
     }
   }
 
-  // Provide helpful error message based on the last error
   if (lastError && typeof lastError === 'object' && 'message' in lastError) {
     const errMsg = String((lastError as { message?: string }).message || '');
     if (errMsg.includes('Could not find service') || errMsg.includes('No such process')) {
@@ -130,7 +128,6 @@ export async function controlService(
 }
 
 export async function getServiceDetails(serviceId: string): Promise<ServiceInfo | null> {
-  // Validate service ID
   if (!isValidServiceId(serviceId)) {
     throw new Error(`Invalid service identifier: ${serviceId}`);
   }
@@ -215,11 +212,10 @@ async function readServiceMetadata(serviceId: string): Promise<LaunchctlMetadata
       return parseLaunchctlPrint(stdout, domain);
     } catch (error) {
       lastError = error;
-      continue; // try next domain
+      continue;
     }
   }
 
-  // Log warning if all domains failed (but don't throw - service may exist without metadata)
   if (lastError) {
     console.warn(`Could not read metadata for service ${serviceId}:`, lastError);
   }
@@ -292,8 +288,6 @@ function parseLaunchctlPrint(output: string, domain: string): LaunchctlMetadata 
 }
 
 function buildDomainCandidates(serviceId: string): string[] {
-  // Validate service ID doesn't contain dangerous patterns
-  // Reject paths with '..' or other traversal attempts
   if (serviceId.includes('..') || serviceId.includes(';') || serviceId.includes('|')) {
     throw new Error('Invalid service identifier: contains dangerous patterns');
   }
@@ -330,7 +324,6 @@ async function mapWithConcurrency<T, R>(
       try {
         results[currentIndex] = await mapper(items[currentIndex], currentIndex);
       } catch (error) {
-        // If a fallback is provided, use it; otherwise rethrow
         if (fallback) {
           console.warn(`Error processing item at index ${currentIndex}, using fallback:`, error);
           results[currentIndex] = fallback(items[currentIndex], error);

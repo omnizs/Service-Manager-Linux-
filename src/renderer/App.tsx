@@ -12,7 +12,6 @@ import { useSettings } from './hooks/useSettings';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
 
 const App: React.FC = () => {
-  // RAM optimization: single source of truth for services, compute filtered on-demand
   const [services, setServices] = useState<ServiceInfo[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,11 +29,9 @@ const App: React.FC = () => {
   const { toasts, addToast, removeToast } = useToast();
   const { settings, updateSettings } = useSettings();
 
-  // Platform detection
   const platform = navigator.platform || 'Unknown';
   const os = platform.includes('Win') ? 'Windows' : platform.includes('Mac') ? 'macOS' : 'Linux';
 
-  // RAM optimization: debounce search query to reduce filtering frequency
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
@@ -42,7 +39,6 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Refresh services - removed filter from API call to fix filtering
   const refreshServices = useCallback(async (showLoader = true) => {
     if (loading || isRefreshing) return;
     
@@ -60,7 +56,6 @@ const App: React.FC = () => {
     }
 
     try {
-      // Fetch all services without filter (fixed: filter now works client-side)
       const response = await window.serviceAPI.listServices({});
 
       if (!response || !response.ok) {
@@ -84,12 +79,10 @@ const App: React.FC = () => {
     }
   }, [loading, isRefreshing, addToast]);
 
-  // RAM optimization: compute filtered services on-demand using useMemo with debounced search
   const filteredServices = React.useMemo(() => {
     let filtered = services;
     const search = debouncedSearchQuery.trim().toLowerCase();
 
-    // Search filter - optimized with early return
     if (search) {
       filtered = filtered.filter((item) => {
         const name = item.name.toLowerCase();
@@ -103,16 +96,13 @@ const App: React.FC = () => {
       });
     }
 
-    // Status filter - map Running/Stopped to actual service statuses
     if (statusFilter && statusFilter !== 'all') {
       filtered = filtered.filter((item) => {
         const status = (item.status || '').toLowerCase();
         
         if (statusFilter === 'running') {
-          // Match: active, running, started
           return status.includes('active') || status.includes('running') || status.includes('started');
         } else if (statusFilter === 'stopped') {
-          // Match: inactive, stopped, dead
           return status.includes('inactive') || status.includes('stopped') || status.includes('dead');
         }
         
@@ -123,28 +113,23 @@ const App: React.FC = () => {
     return filtered;
   }, [services, debouncedSearchQuery, statusFilter]);
 
-  // Clear selection if filtered out
   useEffect(() => {
     if (selectedService && !filteredServices.find(s => s.id === selectedService.id)) {
       setSelectedService(null);
     }
   }, [filteredServices, selectedService]);
 
-  // RAM optimization: Handle service selection with lazy detail loading
   const handleServiceSelect = useCallback(async (service: ServiceInfo) => {
-    // Set basic info immediately for fast UI response
     setSelectedService(service);
     
     if (!window.serviceAPI) {
       return;
     }
 
-    // Load details in background using requestIdleCallback for low priority
     requestIdleCallback(() => {
       window.serviceAPI.getServiceDetails(service.id).then(response => {
         if (response && response.ok && response.data) {
           setSelectedService(prev => {
-            // Only update if still the same service
             if (prev?.id === service.id) {
               return { ...service, ...response.data };
             }
@@ -157,7 +142,6 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // Handle service actions
   const handleServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
     if (!window.serviceAPI) {
       addToast('Service API not available', 'error');
@@ -179,11 +163,9 @@ const App: React.FC = () => {
     }
   }, [addToast, refreshServices]);
 
-  // Initial load and fetch version
   useEffect(() => {
     refreshServices(true);
     
-    // Fetch app version
     if (window.serviceAPI) {
       window.serviceAPI.getAppVersion().then(version => {
         setAppVersion(version);
@@ -193,11 +175,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Auto-update based on settings
   useEffect(() => {
     if (!settings.autoUpdate) return;
 
-    const intervalMs = settings.updateInterval * 60 * 1000; // Convert minutes to milliseconds
+    const intervalMs = settings.updateInterval * 60 * 1000;
     
     const timer = setInterval(() => {
       if (isWindowFocused && !document.hidden) {
@@ -208,7 +189,6 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [settings.autoUpdate, settings.updateInterval, refreshServices, isWindowFocused]);
 
-  // Window focus handling
   useEffect(() => {
     const handleFocus = () => {
       setIsWindowFocused(true);
@@ -243,16 +223,13 @@ const App: React.FC = () => {
     };
   }, [refreshServices, settings.autoUpdate]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ctrl+R or Cmd+R to refresh
       if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
         event.preventDefault();
         refreshServices(true);
       }
       
-      // Escape to clear selection or close settings/backups
       if (event.key === 'Escape') {
         event.preventDefault();
         if (settingsOpen) {
@@ -264,19 +241,16 @@ const App: React.FC = () => {
         }
       }
       
-      // Ctrl+, or Cmd+, to open settings
       if ((event.ctrlKey || event.metaKey) && event.key === ',') {
         event.preventDefault();
         setSettingsOpen(true);
       }
       
-      // Ctrl+B or Cmd+B to open backups
       if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
         event.preventDefault();
         setBackupsOpen(true);
       }
       
-      // Ctrl+F or Cmd+F to focus search
       if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
         event.preventDefault();
         document.getElementById('searchInput')?.focus();
