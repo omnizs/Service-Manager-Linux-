@@ -80,37 +80,48 @@ const App: React.FC = () => {
   }, [loading, isRefreshing, addToast]);
 
   const filteredServices = React.useMemo(() => {
-    let filtered = services;
     const search = debouncedSearchQuery.trim().toLowerCase();
+    const hasSearchQuery = search.length > 0;
+    const hasStatusFilter = statusFilter !== 'all';
 
-    if (search) {
-      filtered = filtered.filter((item) => {
-        const name = item.name.toLowerCase();
-        if (name.includes(search)) return true;
-        
-        const desc = item.description?.toLowerCase();
-        if (desc?.includes(search)) return true;
-        
-        const exec = item.executable?.toLowerCase();
-        return exec?.includes(search) ?? false;
-      });
+    if (!hasSearchQuery && !hasStatusFilter) {
+      return services;
     }
 
-    if (statusFilter && statusFilter !== 'all') {
-      filtered = filtered.filter((item) => {
+    return services.filter((item) => {
+      if (hasStatusFilter) {
         const status = (item.status || '').toLowerCase();
         
         if (statusFilter === 'running') {
-          return status.includes('active') || status.includes('running') || status.includes('started');
+          if (!status.includes('active') && !status.includes('running') && !status.includes('started')) {
+            return false;
+          }
         } else if (statusFilter === 'stopped') {
-          return status.includes('inactive') || status.includes('stopped') || status.includes('dead');
+          if (!status.includes('inactive') && !status.includes('stopped') && !status.includes('dead')) {
+            return false;
+          }
+        }
+      }
+
+      if (hasSearchQuery) {
+        const name = item.name.toLowerCase();
+        if (name.includes(search)) return true;
+        
+        if (item.description) {
+          const desc = item.description.toLowerCase();
+          if (desc.includes(search)) return true;
+        }
+        
+        if (item.executable) {
+          const exec = item.executable.toLowerCase();
+          if (exec.includes(search)) return true;
         }
         
         return false;
-      });
-    }
+      }
 
-    return filtered;
+      return true;
+    });
   }, [services, debouncedSearchQuery, statusFilter]);
 
   useEffect(() => {
