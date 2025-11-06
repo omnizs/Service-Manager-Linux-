@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useMemo } from 'react';
+import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import type { ServiceInfo } from '../../types/service';
 import StatusBadge from './StatusBadge';
 import ActionButton from './ActionButton';
@@ -16,6 +16,9 @@ interface ServiceTableProps {
   onStatusFilterChange: (filter: string) => void;
   onServiceSelect: (service: ServiceInfo) => void;
   onServiceAction: (serviceId: string, action: string, serviceName: string) => void;
+  onToggleFavorite: (serviceId: string) => void;
+  onViewLogs: (serviceId: string, serviceName: string) => void;
+  isFavorite: (serviceId: string) => boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -52,6 +55,9 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
   onStatusFilterChange,
   onServiceSelect,
   onServiceAction,
+  onToggleFavorite,
+  onViewLogs,
+  isFavorite,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -203,7 +209,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Startup</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Executable Path</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider w-52">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -234,6 +240,23 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
                   >
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2" title={getServiceTooltip(service, cached)}>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onToggleFavorite(service.id);
+                          }}
+                          className={`p-1 rounded-full transition-colors ${
+                            isFavorite(service.id)
+                              ? 'text-amber-500 hover:text-amber-400'
+                              : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
+                          }`}
+                          aria-label={isFavorite(service.id) ? 'Remove from favorites' : 'Mark as favorite'}
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill={isFavorite(service.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.6}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927l1.902 3.853 4.256.619-3.079 3.008.727 4.245-3.806-2.002-3.806 2.002.727-4.245-3.079-3.008 4.256-.619 1.902-3.853z" />
+                          </svg>
+                        </button>
                         {renderServiceIcon(service, cached)}
                         <span className="truncate max-w-[220px]">{service.name}</span>
                       </div>
@@ -275,6 +298,13 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
                           enabled={service.canDisable}
                           onClick={() => onServiceAction(service.id, 'disable', service.name)}
                         />
+                        <button
+                          type="button"
+                          onClick={() => onViewLogs(service.id, service.name)}
+                          className="px-2 py-1 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          Logs
+                        </button>
                       </div>
                     </td>
                   </tr>
