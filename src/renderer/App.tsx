@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ServiceInfo, ExportFormat } from '../types/service';
+import type { ServiceInfo, ExportFormat, ServiceAction } from '../types/service';
 import ServiceTable from './components/ServiceTable';
 import ServiceDetails from './components/ServiceDetails';
 import Header from './components/Header';
@@ -12,6 +12,8 @@ import { UpdateNotification } from './components/UpdateNotification';
 import { useSettings } from './hooks/useSettings';
 import { useUserPreferences } from './hooks/useUserPreferences';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
+
+const VALID_SERVICE_ACTIONS = new Set<ServiceAction>(['start', 'stop', 'restart', 'enable', 'disable']);
 
 const App: React.FC = () => {
   const [services, setServices] = useState<ServiceInfo[]>([]);
@@ -91,8 +93,14 @@ const App: React.FC = () => {
       return { success: false, error: 'Service API not available' };
     }
 
+    if (!VALID_SERVICE_ACTIONS.has(action)) {
+      return { success: false, error: `Invalid action: ${action}` };
+    }
+
+    const serviceAction = action as ServiceAction;
+
     try {
-      const response = await window.serviceAPI.controlService(serviceId, action as any);
+      const response = await window.serviceAPI.controlService(serviceId, serviceAction);
       if (!response || !response.ok) {
         const message = response?.error?.message ?? 'Action failed';
         throw new Error(message);
