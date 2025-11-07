@@ -148,7 +148,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
   const getServiceTooltip = (service: ServiceInfo, cached?: ServiceCriticalityCache): string => {
     let tooltip = `${service.name}\n\n`;
     
-    if (cached && cached.criticality.level !== 'normal') {
+    if (cached?.criticality && cached.criticality.level !== 'normal') {
       tooltip += `${cached.criticality.description}\n`;
       if (cached.criticality.warning) {
         tooltip += `${cached.criticality.warning}\n`;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ServiceInfo, ExportFormat } from '../types/service';
 import ServiceTable from './components/ServiceTable';
 import ServiceDetails from './components/ServiceDetails';
@@ -20,7 +20,6 @@ const App: React.FC = () => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
@@ -29,6 +28,8 @@ const App: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('');
   const [logsOpen, setLogsOpen] = useState(false);
   const [selectedForLogs, setSelectedForLogs] = useState<{ id: string; name: string } | null>(null);
+  
+  const isRefreshingRef = useRef(false);
   
   const { toasts, addToast, removeToast } = useToast();
   const { settings, updateSettings } = useSettings();
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   }, [searchQuery]);
 
   const refreshServices = useCallback(async (showLoader = true) => {
-    if (loading || isRefreshing) return;
+    if (isRefreshingRef.current) return;
     
     if (!window.serviceAPI) {
       console.error('Service API not available');
@@ -53,7 +54,7 @@ const App: React.FC = () => {
       return;
     }
 
-    setIsRefreshing(true);
+    isRefreshingRef.current = true;
     const startTime = performance.now();
     
     if (showLoader) {
@@ -81,9 +82,9 @@ const App: React.FC = () => {
       setLoadTime(null);
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
+      isRefreshingRef.current = false;
     }
-  }, [loading, isRefreshing, addToast]);
+  }, [addToast]);
 
   const executeServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
     if (!window.serviceAPI) {
@@ -252,7 +253,7 @@ const App: React.FC = () => {
         console.error('Failed to get app version:', error);
       });
     }
-  }, []);
+  }, [refreshServices]);
 
   useEffect(() => {
     if (!settings.autoUpdate) return;

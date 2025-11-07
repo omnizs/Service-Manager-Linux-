@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ServiceNote } from '../../types/service';
 
 interface UserPreferences {
@@ -41,6 +41,11 @@ const savePreferences = (preferences: UserPreferences): void => {
 
 export const useUserPreferences = () => {
   const [preferences, setPreferences] = useState<UserPreferences>(loadPreferences);
+  const favoritesRef = useRef<Set<string>>(preferences.favorites);
+
+  useEffect(() => {
+    favoritesRef.current = preferences.favorites;
+  }, [preferences.favorites]);
 
   useEffect(() => {
     savePreferences(preferences);
@@ -59,8 +64,8 @@ export const useUserPreferences = () => {
   }, []);
 
   const isFavorite = useCallback((serviceId: string): boolean => {
-    return preferences.favorites.has(serviceId);
-  }, [preferences.favorites]);
+    return favoritesRef.current.has(serviceId);
+  }, []);
 
   const setNote = useCallback((serviceId: string, note: string, tags: string[] = []) => {
     setPreferences(prev => {
