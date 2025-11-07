@@ -3,7 +3,8 @@ import type { ServiceInfo } from '../../types/service';
 import StatusBadge from './StatusBadge';
 import ActionButton from './ActionButton';
 import LoadingSpinner from './LoadingSpinner';
-import { getServiceCriticality, getCriticalityIcon } from '../utils/serviceCriticality';
+import CriticalityIcon from './CriticalityIcon';
+import { getServiceCriticality } from '../utils/serviceCriticality';
 import type { ServiceCriticalityInfo } from '../utils/serviceCriticality';
 
 interface ServiceTableProps {
@@ -42,7 +43,6 @@ const getStatusIconClass = (service: ServiceInfo): string => {
 
 interface ServiceCriticalityCache {
   criticality: ServiceCriticalityInfo;
-  icon: string;
 }
 
 const ServiceTable: React.FC<ServiceTableProps> = memo(({
@@ -65,8 +65,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
     const cache = new Map<string, ServiceCriticalityCache>();
     services.forEach(service => {
       const criticality = getServiceCriticality(service.name, service.id, service.description);
-      const icon = getCriticalityIcon(criticality.level);
-      cache.set(service.id, { criticality, icon });
+      cache.set(service.id, { criticality });
     });
     return cache;
   }, [services]);
@@ -125,6 +124,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
+          aria-hidden="true"
         >
           <path
             strokeLinecap="round"
@@ -133,9 +133,12 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
             d="M9.75 4.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm-7.5 7.5h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5zm7.5 0h-3a1.5 1.5 0 00-1.5 1.5v3a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5v-3a1.5 1.5 0 00-1.5-1.5z"
           />
         </svg>
-        {cached?.icon && (
-          <span className="text-xs" title={cached.criticality.description}>
-            {cached.icon}
+        {cached?.criticality && cached.criticality.level !== 'normal' && (
+          <span
+            className="flex items-center"
+            title={cached.criticality.description}
+          >
+            <CriticalityIcon level={cached.criticality.level} />
           </span>
         )}
       </div>
@@ -146,8 +149,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
     let tooltip = `${service.name}\n\n`;
     
     if (cached && cached.criticality.level !== 'normal') {
-      const iconPrefix = cached.icon ? `${cached.icon} ` : '';
-      tooltip += `${iconPrefix}${cached.criticality.description}\n`;
+      tooltip += `${cached.criticality.description}\n`;
       if (cached.criticality.warning) {
         tooltip += `${cached.criticality.warning}\n`;
       }

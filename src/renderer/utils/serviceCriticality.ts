@@ -79,6 +79,38 @@ const IMPORTANT_SERVICES = {
   ],
 };
 
+function normalizeIdentifier(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\.service$/, '')
+    .replace(/^com\.apple\./, '')
+    .trim();
+}
+
+const CRITICAL_SERVICES_NORMALIZED = {
+  windows: CRITICAL_SERVICES.windows.map(normalizeIdentifier),
+  linux: CRITICAL_SERVICES.linux.map(normalizeIdentifier),
+  macos: CRITICAL_SERVICES.macos.map(normalizeIdentifier),
+} as const;
+
+const IMPORTANT_SERVICES_NORMALIZED = {
+  windows: IMPORTANT_SERVICES.windows.map(normalizeIdentifier),
+  linux: IMPORTANT_SERVICES.linux.map(normalizeIdentifier),
+  macos: IMPORTANT_SERVICES.macos.map(normalizeIdentifier),
+} as const;
+
+const CRITICAL_SERVICES_SET = {
+  windows: new Set(CRITICAL_SERVICES_NORMALIZED.windows),
+  linux: new Set(CRITICAL_SERVICES_NORMALIZED.linux),
+  macos: new Set(CRITICAL_SERVICES_NORMALIZED.macos),
+} as const;
+
+const IMPORTANT_SERVICES_SET = {
+  windows: new Set(IMPORTANT_SERVICES_NORMALIZED.windows),
+  linux: new Set(IMPORTANT_SERVICES_NORMALIZED.linux),
+  macos: new Set(IMPORTANT_SERVICES_NORMALIZED.macos),
+} as const;
+
 function detectPlatform(serviceName: string, serviceId: string): 'windows' | 'linux' | 'macos' {
   if (serviceName.startsWith('com.apple.') || serviceId.includes('com.apple')) {
     return 'macos';
@@ -91,28 +123,22 @@ function detectPlatform(serviceName: string, serviceId: string): 'windows' | 'li
   return 'windows';
 }
 
-function normalizeServiceName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\.service$/, '')
-    .replace(/^com\.apple\./, '')
-    .trim();
-}
-
 export function getServiceCriticality(
   serviceName: string,
   serviceId: string,
   description?: string
 ): ServiceCriticalityInfo {
-  const normalizedName = normalizeServiceName(serviceName);
-  const normalizedId = normalizeServiceName(serviceId);
+  const normalizedName = normalizeIdentifier(serviceName);
+  const normalizedId = normalizeIdentifier(serviceId);
   const platform = detectPlatform(serviceName, serviceId);
   
-  const isCritical = CRITICAL_SERVICES[platform].some(
-    critical => 
-      normalizedName.includes(critical.toLowerCase()) ||
-      normalizedId.includes(critical.toLowerCase())
-  );
+  const criticalSet = CRITICAL_SERVICES_SET[platform];
+  const importantSet = IMPORTANT_SERVICES_SET[platform];
+  
+  const isCritical = criticalSet.has(normalizedName) || criticalSet.has(normalizedId) ||
+    Array.from(criticalSet).some(critical => 
+      normalizedName.includes(critical) || normalizedId.includes(critical)
+    );
   
   if (isCritical) {
     return {
@@ -122,11 +148,10 @@ export function getServiceCriticality(
     };
   }
   
-  const isImportant = IMPORTANT_SERVICES[platform].some(
-    important => 
-      normalizedName.includes(important.toLowerCase()) ||
-      normalizedId.includes(important.toLowerCase())
-  );
+  const isImportant = importantSet.has(normalizedName) || importantSet.has(normalizedId) ||
+    Array.from(importantSet).some(important => 
+      normalizedName.includes(important) || normalizedId.includes(important)
+    );
   
   if (isImportant) {
     return {
@@ -150,16 +175,5 @@ export function getCriticalityBadgeClasses(level: CriticalityLevel): string {
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300 dark:border-amber-800';
     case 'normal':
       return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border-gray-300 dark:border-gray-700';
-  }
-}
-
-export function getCriticalityIcon(level: CriticalityLevel): string {
-  switch (level) {
-    case 'critical':
-      return '⚠️';
-    case 'important':
-      return '⚡';
-    case 'normal':
-      return '';
   }
 }

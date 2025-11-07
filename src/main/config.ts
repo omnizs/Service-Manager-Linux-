@@ -1,7 +1,7 @@
 export const CONFIG = {
   CACHE: {
-    TTL_MS: 500,
-    MAX_SIZE: 10,
+    TTL_MS: 5000,
+    MAX_SIZE: 50,
     ENABLED: true,
   },
   RATE_LIMIT: {
