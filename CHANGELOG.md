@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2025-11-15
+
+### Performance Improvements
+
+- **Enhanced Cache Management**: Increased cache TTL from 500ms to 5000ms for better hit rates
+  - Increased MAX_SIZE from 10 to 50 entries for OrderedCache
+  - Periodic cleanup of expired cache entries every 2 minutes
+- **Memory Optimizations**: Added memory optimization flags for Chromium
+  - Implemented `disable-http-cache`, `max-old-space-size=512`, and `renderer-process-limit=1`
+  - Added backgroundThrottling and enablePreferredSizeMode to BrowserWindow
+  - Explicit garbage collection calls on window close and periodic cleanup when idle
+- **React Performance Optimizations**:
+  - Replaced state-based loading with ref-based loading state to prevent unnecessary re-renders
+  - Optimized callback dependencies to use stable references
+  - Improved filtering with useMemo computed values instead of separate state
+  - Added search debouncing (300ms) to reduce filtering frequency
+- **Pagination Optimization**: Reduced ITEMS_PER_PAGE from 100 to 50 for better performance
+- **Service Criticality Detection**: Optimized with Set-based O(1) lookup instead of array.some()
+- **Detail Loading**: Implemented lazy loading of service details using requestIdleCallback
+- **Auto-refresh**: Increased default interval from 5 to 10 minutes to reduce overhead
+- **Toast Queue**: Limited to 5 toasts maximum to prevent memory buildup
+
+### Fixed
+
+- **Callback Stability**: Fixed infinite re-render loops caused by unstable callback dependencies
+- **Memory Leaks**: Resolved memory leaks from Set/Map object dependencies in useCallback
+- **State Instability**: Fixed issues with loading state causing unnecessary component updates
+- **Optional Chaining**: Added proper optional chaining for nested properties to prevent crashes
+
+### Technical
+
+- Improved React hooks implementation with refs for non-render state
+- Enhanced useUserPreferences hook to prevent Set reference instability
+- Optimized service criticality lookup with Set-based data structures
+- Better dependency management in useCallback and useMemo hooks
+- Reduced bundle size and improved startup time
+
 ## [2.7.0] - 2025-11-10
 
 ### Added
