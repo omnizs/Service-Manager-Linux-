@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type { ServiceInfo, ExportFormat } from '../types/service';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { ServiceInfo, ExportFormat, ServiceAction } from '../types/service';
 import ServiceTable from './components/ServiceTable';
 import ServiceDetails from './components/ServiceDetails';
 import Header from './components/Header';
@@ -13,6 +13,8 @@ import { useSettings } from './hooks/useSettings';
 import { useUserPreferences } from './hooks/useUserPreferences';
 import { getUserFriendlyErrorMessage } from '../utils/errorHandler';
 
+const VALID_SERVICE_ACTIONS = new Set<ServiceAction>(['start', 'stop', 'restart', 'enable', 'disable']);
+
 const App: React.FC = () => {
   const [services, setServices] = useState<ServiceInfo[]>([]);
   const [selectedService, setSelectedService] = useState<ServiceInfo | null>(null);
@@ -20,7 +22,6 @@ const App: React.FC = () => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
@@ -29,6 +30,8 @@ const App: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('');
   const [logsOpen, setLogsOpen] = useState(false);
   const [selectedForLogs, setSelectedForLogs] = useState<{ id: string; name: string } | null>(null);
+  
+  const isRefreshingRef = useRef(false);
   
   const { toasts, addToast, removeToast } = useToast();
   const { settings, updateSettings } = useSettings();
@@ -45,7 +48,7 @@ const App: React.FC = () => {
   }, [searchQuery]);
 
   const refreshServices = useCallback(async (showLoader = true) => {
-    if (loading || isRefreshing) return;
+    if (isRefreshingRef.current) return;
     
     if (!window.serviceAPI) {
       console.error('Service API not available');
@@ -53,7 +56,7 @@ const App: React.FC = () => {
       return;
     }
 
-    setIsRefreshing(true);
+    isRefreshingRef.current = true;
     const startTime = performance.now();
     
     if (showLoader) {
@@ -81,17 +84,23 @@ const App: React.FC = () => {
       setLoadTime(null);
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
+      isRefreshingRef.current = false;
     }
-  }, [loading, isRefreshing, addToast]);
+  }, [addToast]);
 
   const executeServiceAction = useCallback(async (serviceId: string, action: string, serviceName: string) => {
     if (!window.serviceAPI) {
       return { success: false, error: 'Service API not available' };
     }
 
+    if (!VALID_SERVICE_ACTIONS.has(action)) {
+      return { success: false, error: `Invalid action: ${action}` };
+    }
+
+    const serviceAction = action as ServiceAction;
+
     try {
-      const response = await window.serviceAPI.controlService(serviceId, action as any);
+      const response = await window.serviceAPI.controlService(serviceId, serviceAction);
       if (!response || !response.ok) {
         const message = response?.error?.message ?? 'Action failed';
         throw new Error(message);
@@ -252,7 +261,7 @@ const App: React.FC = () => {
         console.error('Failed to get app version:', error);
       });
     }
-  }, []);
+  }, [refreshServices]);
 
   useEffect(() => {
     if (!settings.autoUpdate) return;
