@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('');
   const [logsOpen, setLogsOpen] = useState(false);
   const [selectedForLogs, setSelectedForLogs] = useState<{ id: string; name: string } | null>(null);
+  const [noteEditingTrigger, setNoteEditingTrigger] = useState<number | null>(null);
   
   const isRefreshingRef = useRef(false);
   
@@ -251,6 +252,24 @@ const App: React.FC = () => {
     setSelectedForLogs(null);
   }, []);
 
+  const handleSaveNote = useCallback((serviceId: string, note: string, tags: string[]) => {
+    setNote(serviceId, note, tags);
+    addToast(`✓ Note saved for service`, 'success');
+  }, [setNote, addToast]);
+
+  const handleDeleteNote = useCallback((serviceId: string) => {
+    deleteNote(serviceId);
+    addToast(`✓ Note deleted`, 'success');
+  }, [deleteNote, addToast]);
+
+  const hasNote = useCallback((serviceId: string): boolean => {
+    return getNote(serviceId) !== undefined;
+  }, [getNote]);
+
+  useEffect(() => {
+    setNoteEditingTrigger(null);
+  }, [selectedService?.id]);
+
   useEffect(() => {
     refreshServices(true);
     
@@ -313,12 +332,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+      const key = event.key.toLowerCase();
+      const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      if (isCtrlOrCmd && key === 'r') {
         event.preventDefault();
         refreshServices(true);
       }
       
-      if (event.key === 'Escape') {
+      if (key === 'escape') {
         event.preventDefault();
         if (settingsOpen) {
           setSettingsOpen(false);
@@ -329,32 +351,51 @@ const App: React.FC = () => {
         }
       }
       
-      if ((event.ctrlKey || event.metaKey) && event.key === ',') {
+      if (isCtrlOrCmd && key === ',') {
         event.preventDefault();
         setSettingsOpen(true);
       }
       
-      if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
+      if (isCtrlOrCmd && key === 'b') {
         event.preventDefault();
         setBackupsOpen(true);
       }
       
-      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+      if (isCtrlOrCmd && key === 'f' && !event.shiftKey) {
         event.preventDefault();
         document.getElementById('searchInput')?.focus();
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.key === 'l') {
+      if (isCtrlOrCmd && key === 'l') {
         event.preventDefault();
         if (selectedService) {
           handleViewLogs(selectedService.id, selectedService.name);
         }
       }
+
+      if (isCtrlOrCmd && key === 'n' && !event.shiftKey) {
+        event.preventDefault();
+        if (selectedService) {
+          setNoteEditingTrigger(Date.now());
+        }
+      }
+
+      if (isCtrlOrCmd && event.shiftKey && key === 'f') {
+        event.preventDefault();
+        if (selectedService) {
+          handleToggleFavorite(selectedService.id);
+        }
+      }
+
+      if (isCtrlOrCmd && key === 'e') {
+        event.preventDefault();
+        handleExport('json');
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [refreshServices, selectedService, settingsOpen, backupsOpen, handleViewLogs]);
+  }, [refreshServices, selectedService, settingsOpen, backupsOpen, handleViewLogs, handleToggleFavorite, handleExport]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
@@ -383,10 +424,15 @@ const App: React.FC = () => {
             onToggleFavorite={handleToggleFavorite}
             onViewLogs={handleViewLogs}
             isFavorite={isFavorite}
+            hasNote={hasNote}
           />
 
           <ServiceDetails
             service={selectedService}
+            note={selectedService ? getNote(selectedService.id) : undefined}
+            onSaveNote={handleSaveNote}
+            onDeleteNote={handleDeleteNote}
+            noteEditingTrigger={noteEditingTrigger}
           />
         </div>
       </main>

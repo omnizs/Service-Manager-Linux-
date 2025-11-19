@@ -20,6 +20,7 @@ interface ServiceTableProps {
   onToggleFavorite: (serviceId: string) => void;
   onViewLogs: (serviceId: string, serviceName: string) => void;
   isFavorite: (serviceId: string) => boolean;
+  hasNote?: (serviceId: string) => boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -58,6 +59,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
   onToggleFavorite,
   onViewLogs,
   isFavorite,
+  hasNote = () => false,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -180,6 +182,7 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search services..."
+            aria-label="Search services"
             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
@@ -261,6 +264,17 @@ const ServiceTable: React.FC<ServiceTableProps> = memo(({
                         </button>
                         {renderServiceIcon(service, cached)}
                         <span className="truncate max-w-[220px]">{service.name}</span>
+                        {hasNote(service.id) && (
+                          <svg
+                            className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-label="Has note"
+                            title="This service has notes"
+                          >
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                          </svg>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">

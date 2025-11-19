@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.5-alpha.1] - 2025-11-19
+
+### Added
+
+- **Service Notes Feature**: Add, edit, and delete notes for individual services
+  - Rich text area for detailed service documentation
+  - Tag support for organizing notes (press Enter to add tags)
+  - Visual indicator (📄 icon) in service table for services with notes
+  - Notes persist across sessions via localStorage
+  - Automatic timestamps for created/updated times
+  - Integrated into service details panel
+- **Enhanced Keyboard Shortcuts**:
+  - `Ctrl/Cmd + N` - Add or edit note for selected service
+  - `Ctrl/Cmd + E` - Quick export services to JSON
+  - `Ctrl/Cmd + Shift + F` - Toggle favorite for selected service
+  - Improved keyboard navigation with normalized key handling
+- **Better Accessibility**:
+  - Enhanced ARIA labels for note editing controls
+  - Improved screen reader support for note indicators
+  - Better focus management when editing notes
+  - Keyboard-friendly tag management
+
+### Changed
+
+- Keyboard shortcut handling now uses normalized key names for consistency
+- ServiceDetails component now displays service notes inline
+- ServiceTable component shows note indicators for quick identification
+
+### Technical
+
+- Added `ServiceNotes` component with full CRUD operations for service notes
+- Enhanced `useUserPreferences` hook integration for note management
+- Added `noteEditingTrigger` state for programmatic note editing
+- Improved component props with optional note-related handlers
+- Better TypeScript types for service notes and tags
+
 ## [2.8.0] - 2025-11-15
 
 ### Performance Improvements

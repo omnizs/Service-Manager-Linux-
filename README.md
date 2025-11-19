@@ -71,9 +71,27 @@ service-manager --elevate
 
 ## Keyboard Shortcuts
 
+### General
 - `Ctrl+R` / `Cmd+R` - Refresh service list
 - `Ctrl+F` / `Cmd+F` - Focus search input
-- `Escape` - Clear service selection
+- `Ctrl+,` / `Cmd+,` - Open settings
+- `Ctrl+B` / `Cmd+B` - Open backup manager
+- `Ctrl+E` / `Cmd+E` - Quick export services to JSON
+- `Escape` - Clear service selection / Close modals
+
+### Service Actions (requires service selection)
+- `Ctrl+L` / `Cmd+L` - View logs for selected service
+- `Ctrl+N` / `Cmd+N` - Add/edit note for selected service
+- `Ctrl+Shift+F` / `Cmd+Shift+F` - Toggle favorite for selected service
+
+## Service Notes (Preview)
+
+- Document tribal knowledge for each service with rich text notes
+- Add tags (e.g., `critical`, `monitoring`, `database`) for quick filtering
+- Notes persist locally per machine and sync instantly across tabs
+- Visual indicator surfaces in the service table when a service has notes
+- Automatic timestamps for when notes were created and last updated
+- Keyboard shortcut (`Ctrl/Cmd + N`) launches the note editor for the selected service
 
 ## Security
 
@@ -90,7 +108,16 @@ Service Manager includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.8.0 (Latest)
+### Version 2.8.5-alpha.1 (Pre-release)
+
+**Alpha Release - New Features & Improvements:**
+- **Service Notes**: Add, edit, and organize notes for individual services with tag support
+- **Enhanced Keyboard Shortcuts**: New shortcuts for notes, favorites, and quick export
+- **Better Accessibility**: Improved ARIA labels and keyboard navigation
+- Integrated note editor in service details panel with auto-focus
+- Visual indicators for services with notes in the table view
+
+### Version 2.8.0
 
 **Performance & Stability Release:**
 - **Major Performance Improvements**: Comprehensive optimization pass addressing memory usage and render performance

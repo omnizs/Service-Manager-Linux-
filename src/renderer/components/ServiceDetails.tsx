@@ -1,12 +1,17 @@
 import React, { memo } from 'react';
-import type { ServiceInfo } from '../../types/service';
+import type { ServiceInfo, ServiceNote } from '../../types/service';
 import HealthIndicator from './HealthIndicator';
+import ServiceNotes from './ServiceNotes';
 
 interface ServiceDetailsProps {
   service: ServiceInfo | null;
+  note?: ServiceNote;
+  onSaveNote?: (serviceId: string, note: string, tags: string[]) => void;
+  onDeleteNote?: (serviceId: string) => void;
+  noteEditingTrigger?: number | null;
 }
 
-const ServiceDetails: React.FC<ServiceDetailsProps> = memo(({ service }) => {
+const ServiceDetails: React.FC<ServiceDetailsProps> = memo(({ service, note, onSaveNote, onDeleteNote, noteEditingTrigger }) => {
   const formatStatusLabel = (label: string): string => {
     if (!label) return 'Unknown';
     const cleaned = label.replace(/\s*\([^)]*\)/g, '').trim();
@@ -102,6 +107,17 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = memo(({ service }) => {
         </dl>
 
         <HealthIndicator serviceId={service.id} expectedStatus={service.status} />
+
+        {onSaveNote && onDeleteNote && (
+          <ServiceNotes
+            serviceId={service.id}
+            serviceName={service.name}
+            note={note}
+            onSave={(noteText, tags) => onSaveNote(service.id, noteText, tags)}
+            onDelete={() => onDeleteNote(service.id)}
+            editingTrigger={noteEditingTrigger}
+          />
+        )}
       </div>
     </aside>
   );
