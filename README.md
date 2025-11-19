@@ -90,7 +90,30 @@ Service Manager includes comprehensive security enhancements:
 
 ## Changelog
 
-### Version 2.6.5 (Latest)
+### Version 2.8.0 (Latest)
+
+**Performance & Stability Release:**
+- **Major Performance Improvements**: Comprehensive optimization pass addressing memory usage and render performance
+  - Enhanced cache management with increased TTL (5000ms) and size (50 entries)
+  - Chromium memory optimization flags and garbage collection improvements
+  - React performance optimizations using refs for non-render state
+  - Reduced pagination size (50 items per page) and search debouncing (300ms)
+  - Service criticality detection optimized with Set-based O(1) lookups
+- **Stability Fixes**: Resolved callback and state instability issues
+  - Fixed infinite re-render loops from unstable dependencies
+  - Resolved memory leaks from Set/Map object dependencies in useCallback
+  - Improved optional chaining for nested properties
+- **Developer Experience**: Better React hooks implementation and dependency management
+
+### Version 2.7.0
+
+**New Features:**
+- **Log Viewer**: View service logs in real-time with cross-platform support (systemd, Windows Event Viewer, macOS)
+- **Favorite Services**: Pin important services to the top of your list
+- **Export Services**: Export to CSV, JSON, or Markdown formats
+- **Backup & Restore**: Create snapshots of service states and restore them later
+
+### Version 2.6.5
 
 **New Features:**
 - **Service Criticality Indicators**: Visual indicators (⚠️ for critical, ⚡ for important) help identify system-essential services
